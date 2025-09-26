@@ -74,7 +74,14 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
 }
 
 void keyboard_routine() {
-  
+  unsigned char b;
+  b = inb(0x60);
+
+  if (b & 0x60) {
+    return;
+  }
+
+  unsigned char tecla = b & 0x7F;
 }
 
 void keyboard_handler() {
@@ -97,7 +104,7 @@ void setIdt()
   set_handlers();
 
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
-
+  setInterruptHandler(33, keyboard_handler, 0);
   set_idt_reg(&idtR);
 }
 
