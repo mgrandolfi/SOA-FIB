@@ -77,23 +77,19 @@ void keyboard_routine() {
   unsigned char b;
   b = inb(0x60);
 
-  if (b & 0x60) {
+  if (b & 0x80) { // b & 1000 0000 = break
     return;
   }
-
-  unsigned char tecla = b & 0x7F;
+  //CTRL, ALT, ESPAI, ENTER... NO FORMAN PARTE DE ASCII
+  unsigned char pos_tecla = b & 0x7F; //0111 1111 = scan code
+  char tecla = char_map[pos_tecla];
+  if (tecla) { //si té valor, si no té és perquè no està a l'ASCII
+    printc_xy(0, 0, tecla);
+  }
+  else printc_xy(0, 0, 'C');
 }
 
-void keyboard_handler() {
-  void SAVE_ALL();
-  void RESTORE_ALL();
-  void EOI();
-
-  SAVE_ALL();
-  EOI();
-  KEYBOARD_ROUTINE();
-  RESTORE_ALL();
-}
+void keyboard_handler();
 
 void setIdt()
 {
