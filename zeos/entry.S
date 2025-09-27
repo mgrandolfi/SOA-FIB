@@ -81,3 +81,6 @@ ENTRY(clock_handler)
       call clock_routine
       RESTORE_ALL
       iret
+
+ENTRY(pf_handler)
+      call pf_routine

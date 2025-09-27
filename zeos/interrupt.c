@@ -93,8 +93,17 @@ void clock_routine() {
   zeos_show_clock();
 }
 
+void pf_routine(uint address) {
+  uint eip = address;
+  printk("\nProcess generates a PAGE FAULT exception at EIP: 0x");
+
+  
+  while(1);
+}
+
 void keyboard_handler();
 void clock_handler();
+void pf_handler();
 
 void setIdt()
 {
@@ -107,6 +116,7 @@ void setIdt()
   /* ADD INITIALIZATION CODE FOR INTERRUPT VECTOR */
   setInterruptHandler(33, keyboard_handler, 0);
   setInterruptHandler(32, clock_handler, 0);
+  setInterruptHandler(14, pf_handler, 0);
   set_idt_reg(&idtR);
 }
 
