@@ -70,7 +70,14 @@
 
 ENTRY(keyboard_handler)
       SAVE_ALL
-      call keyboard_routine
       EOI
+      call keyboard_routine
+      RESTORE_ALL
+      iret
+
+ENTRY(clock_handler)
+      SAVE_ALL
+      EOI
+      call clock_routine
       RESTORE_ALL
       iret
