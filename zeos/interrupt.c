@@ -93,11 +93,14 @@ void clock_routine() {
   zeos_show_clock();
 }
 
-void pf_routine(uint address) {
-  uint eip = address;
+void pf_routine(int eip) {
   printk("\nProcess generates a PAGE FAULT exception at EIP: 0x");
-
-  
+  static const char hex[] = "0123456789ABCDEF";
+  for (int i = 7; i >= 0; --i) {
+      unsigned int hex_i = (eip >> (i*4)) & 0xF;
+      printc(hex[hex_i]);
+  }
+  printk("\n");
   while(1);
 }
 
