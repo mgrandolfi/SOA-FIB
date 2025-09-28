@@ -30,7 +30,7 @@ int sys_ni_syscall()
 	return -38; /*ENOSYS*/
 }
 
-int gettime() {
+int sys_gettime() {
   return zeos_ticks;
 }
 
