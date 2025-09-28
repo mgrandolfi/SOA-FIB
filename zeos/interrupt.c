@@ -89,7 +89,10 @@ void keyboard_routine() {
   else printc_xy(0, 0, 'C');
 }
 
+unsigned int zeos_ticks = 0;
+
 void clock_routine() {
+  ++zeos_ticks;
   zeos_show_clock();
 }
 
@@ -107,6 +110,7 @@ void pf_routine(int eip) {
 void keyboard_handler();
 void clock_handler();
 void pf_handler();
+void system_call_handler();
 
 void setIdt()
 {
@@ -120,7 +124,8 @@ void setIdt()
   setInterruptHandler(33, keyboard_handler, 0);
   setInterruptHandler(32, clock_handler, 0);
   setInterruptHandler(14, pf_handler, 0);
-  setTrapHandler(0x80, syscall_handler, 3);
+  setTrapHandler(0x80, system_call_handler, 3);
+
   set_idt_reg(&idtR);
 }
 

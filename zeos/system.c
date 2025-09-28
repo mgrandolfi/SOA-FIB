@@ -74,7 +74,6 @@ int __attribute__((__section__(".text.main")))
 
   printk("Kernel Loaded!    ");
 
-
   /* Initialize hardware data */
   setGdt(); /* Definicio de la taula de segments de memoria */
   setIdt(); /* Definicio del vector de interrupcions */
