@@ -94,7 +94,7 @@ ENTRY(system_call_handler)
       call *sys_call_table(, %EAX, 0x04)  // Call the corresponding service routine
       jmp fin                             // Finish
    err:
-      movl $-ENOSYS, %EAX                 // Move to EAX the ENOSYS error
+      call sys_ni_syscall                 // Move to EAX the ENOSYS error
    fin:
       movl %EAX, 0x18(%esp)               // Change the EAX value in the stack
       RESTORE_ALL                         // Restore the context
