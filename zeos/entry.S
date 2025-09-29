@@ -111,7 +111,7 @@ ENTRY(system_call_handler)
       jl sysenter_err
       cmpl $MAX_SYSCALL, %EAX
       jg sysenter_err
-      call *sys_call_table(, %EAX, 0x04)
+      call *sys_call_table(, %EAX, 0x04) // hola 
       jmp sysenter_fin
    sysenter_err:
       movl $-ENOSYS, %EAX
