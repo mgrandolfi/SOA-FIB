@@ -29,8 +29,6 @@ int check_fd(int fd, int permissions)
   return 0;
 }
 
-int sys_write_console(char *buffer, int size);
-
 int sys_write(int fd, char *buffer, int size)
 {
     /* 1) validate parameters */
