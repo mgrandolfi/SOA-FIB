@@ -83,7 +83,14 @@ ENTRY(clock_handler)
       iret
 
 ENTRY(pf_handler)
-      call pf_routine
+      SAVE_ALL
+      movl 0x30(%esp), %eax
+      pushl %eax
+      call  pf_routine
+      addl $4, %esp
+      RESTORE_ALL
+      addl $4, %esp
+      iret
 
 ENTRY(system_call_handler)
       SAVE_ALL                            // Save the current context
