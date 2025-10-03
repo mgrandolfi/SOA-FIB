@@ -13,8 +13,7 @@ int __attribute__ ((__section__(".text.main")))
   /*char* p = 0;
   *p = 'x';*/
 
-  write(1, "hello, zeos!\n", 13);      /* stdout */
-  write(1, "and to stderr!\n", 15);    /* stderr */
+  write(1, "hello, zeos!\n", 13);
 
   while(1) { }
 }

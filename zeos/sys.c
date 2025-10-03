@@ -31,7 +31,7 @@ int check_fd(int fd, int permissions)
 
 int sys_write(int fd, char *buffer, int size)
 {
-    /* 1) validate parameters */
+    // fem check dels paràmetres
     int err = check_fd(fd, ESCRIPTURA);
     if (err < 0) return err;
 
@@ -39,21 +39,21 @@ int sys_write(int fd, char *buffer, int size)
     if (size   < 0)     return -EINVAL;
     if (size   == 0)    return 0;
 
-    /* 2) copy from user to a kernel buffer and 3) do the write */
+    // copiem de user a un kernel buffer i fem el write
     int done = 0;
-    char kbuf[256];                     /* chunked copy to avoid big stack frames */
+    char kbuf[256];
     while (done < size) {
         int n = size - done;
         if (n > (int)sizeof(kbuf)) n = sizeof(kbuf);
 
-        /* copy_from_user(user_src, kernel_dst, n) returns 0 on OK, <0 on error */
+        // copy_from_user(user_src, kernel_dst, n) retorna 0 si OK, <0 si dona error */
         if (copy_from_user(buffer + done, kbuf, n) < 0) return -EFAULT;
 
         sys_write_console(kbuf, n);
         done += n;
     }
 
-    /* 4) return number of bytes written */
+    // retornem número de bytes escrits
     return done;
 }
 
