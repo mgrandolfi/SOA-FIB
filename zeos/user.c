@@ -4,6 +4,8 @@ char buff[24];
 
 int pid;
 
+extern int gettime();
+
 int __attribute__ ((__section__(".text.main")))
   main(void)
 {
@@ -14,6 +16,12 @@ int __attribute__ ((__section__(".text.main")))
   //*p = 'x';
 
   write(1, "hello, zeos!\n", 13);
+  write(1, "hello again!\n", 13);
 
-  while(1) { }
+  /*int time_val = gettime();
+  itoa(time_val, buff);
+  write(1, buff, strlen(buff));*/
+
+  while(1) {
+  }
 }
