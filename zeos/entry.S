@@ -4,6 +4,7 @@
 
 #include <asm.h>
 #include <segment.h>
+#include <errno.h>
 
 
 /**************************************************/
@@ -83,14 +84,9 @@ ENTRY(clock_handler)
       iret
 
 ENTRY(pf_handler)
-      SAVE_ALL
-      movl 0x30(%esp), %eax
+      movl 0x04(%esp), %eax
       pushl %eax
-      call  pf_routine
-      addl $4, %esp
-      RESTORE_ALL
-      addl $4, %esp
-      iret
+      call pf_routine
 
 ENTRY(system_call_handler)
       SAVE_ALL                            // Save the current context
@@ -101,13 +97,13 @@ ENTRY(system_call_handler)
       call *sys_call_table(, %EAX, 0x04)  // Call the corresponding service routine
       jmp fin                             // Finish
    err:
-      call sys_ni_syscall                 // Move to EAX the ENOSYS error
+      movl $-ENOSYS, %EAX                 // call sys_ni_syscall? Move to EAX the ENOSYS error
    fin:
       movl %EAX, 0x18(%esp)               // Change the EAX value in the stack
       RESTORE_ALL                         // Restore the context
       iret
 
-/*ENTRY(syscall_handler_sysenter)
+ENTRY(syscall_handler_sysenter)
       push $__USER_DS
       push %EBP                           // User stack address
       pushfl
@@ -128,4 +124,15 @@ ENTRY(system_call_handler)
       movl (%ESP), %EDX                   // Return address
       movl 12(%ESP), %ECX                 // User stack address
       sti                                 // Enable interrupts again
-      sysexit*/
+      sysexit
+
+ENTRY(writeMSR)
+      push %ebp
+      movl %esp, %ebp
+
+      movl 8(%ebp), %edx
+      movl 12(%ebp), %ecx
+      wrmsr
+
+      popl %ebp;
+      ret

@@ -1,10 +1,8 @@
 #include <asm.h>
-#include <segment.h>
 
 ENTRY(gettime)
-    movl $10, %EAX;        // sys_gettime pos 10 a la sys_call_table
-    int  $0x80;            // trap -> kernel
-    call system_call_handler;
+    movl $10, %eax;   // sys_gettime pos 10 a la sys_call_table
+    int $0x80;        // trap -> kernel
     ret
 
 ENTRY(write)
@@ -15,8 +13,7 @@ ENTRY(write)
     movl 12(%ebp), %ecx;
     movl 16(%ebp), %ebx;
     movl 4, %eax;
-    int 0x80;
-    call system_call_handler;
+    int $0x80;
     mov %eax, 24(%esp);
     popl %ebp;
     ret

@@ -13,12 +13,10 @@
 
 #include <sched.h>
 
+#include <errno.h>
+
 #define LECTURA 0
 #define ESCRIPTURA 1
-
-#define EBADF   9
-#define EFAULT  14
-#define EINVAL  22
 
 extern int zeos_ticks;
 
