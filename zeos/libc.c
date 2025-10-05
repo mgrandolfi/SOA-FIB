@@ -70,7 +70,7 @@ void perror(void){
 
     // sys_ni_syscall error
     case ENOSYS:
-      write(1, "Function (Syscall) not implemented\n", 25);
+      write(1, "Invalid system call number\n", 25);
       break;
     
     // "user" error quan es retorna -1

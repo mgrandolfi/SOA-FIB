@@ -12,6 +12,8 @@
 Gate idt[IDT_ENTRIES];
 Register    idtR;
 
+unsigned int zeos_ticks = 0;
+
 char char_map[] =
 {
   '\0','\0','1','2','3','4','5','6',
@@ -73,6 +75,12 @@ void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL)
   idt[vector].highOffset      = highWord((DWord)handler);
 }
 
+void keyboard_handler();
+void clock_handler();
+void pf_handler();
+void system_call_handler();
+void syscall_handler_sysenter();
+
 void keyboard_routine() {
   unsigned char b;
   b = inb(0x60);
@@ -88,8 +96,6 @@ void keyboard_routine() {
   }
   else printc_xy(0, 0, 'C');
 }
-
-unsigned int zeos_ticks = 0;
 
 void clock_routine() {
   ++zeos_ticks;
@@ -107,10 +113,6 @@ void pf_routine(int eip) {
   while(1);
 }
 
-void keyboard_handler();
-void clock_handler();
-void pf_handler();
-void system_call_handler();
 
 void setIdt()
 {
@@ -124,7 +126,11 @@ void setIdt()
   setInterruptHandler(33, keyboard_handler, 0);
   setInterruptHandler(32, clock_handler, 0);
   setInterruptHandler(14, pf_handler, 0);
-  setTrapHandler(0x80, system_call_handler, 3);
+  //setTrapHandler(0x80, system_call_handler, 3);
+
+  writeMSR(0x174, __KERNEL_CS);
+  writeMSR(0x175, INITIAL_ESP);
+  writeMSR(0x176, (unsigned long)syscall_handler_sysenter);
 
   set_idt_reg(&idtR);
 }

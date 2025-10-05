@@ -25,6 +25,6 @@ ENTRY(write)
     sysenter;
 
     mov %eax, 24(%esp);
-    
+
     popl %ebp;
     ret
