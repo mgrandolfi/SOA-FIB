@@ -14,18 +14,18 @@ ENTRY(gettime)
     sysenter                        // trap -> kernel
 
 after_sysenter_gettime:
-    popl %ebp       // eliminem fake frame
-    addl $4, %esp   // eliminem return EIP
+    popl %ebp       // desfem frame
+    addl $4, %esp
     popl %edx
     popl %ecx
 
     cmpl $0, %eax   // errno management: if (EAX < 0) { errno = -EAX; EAX = -1; }
-    jge 1f
+    jge gettime_return
     negl %eax
     movl %eax, errno
     movl $-1, %eax
 
-1:
+gettime_return:
     movl %ebp, %esp
     popl %ebp
     ret
@@ -48,17 +48,18 @@ ENTRY(write)
     sysenter
 
 after_sysenter_write:
-    popl %ebp       //desfem frame
+    popl %ebp       // desfem frame
     addl $4, %esp
     popl %edx
     popl %ecx
 
-    cmpl $0, %eax   //errno management
-    jge 2f
+    cmpl $0, %eax   // errno management
+    jge write_return
     negl %eax
     movl %eax, errno
     movl $-1, %eax
-2:
+    
+write_return:
     movl %ebp, %esp
     popl %ebp
     ret
