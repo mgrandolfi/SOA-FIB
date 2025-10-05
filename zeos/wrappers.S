@@ -1,30 +1,64 @@
 #include <asm.h>
 
 ENTRY(gettime)
-    push %ebp;
-    movl %esp, %ebp;
+    pushl %ebp
+    movl %esp, %ebp
 
-    movl $10, %eax;   // sys_gettime pos 10 a la sys_call_table
+    pushl %ecx                      // guardem ECX
+    pushl %edx                      // guardem EDX
+    pushl $after_sysenter_gettime   // user return EIP per al sysexit
+    pushl %ebp                      // fake frame link
+    movl %esp, %ebp                 // EBP ara apunta al frame del kernel
 
-    sysenter;        // trap -> kernel
+    movl $10, %eax
+    sysenter                        // trap -> kernel
 
-    popl %ebp;
+after_sysenter_gettime:
+    popl %ebp       // eliminem fake frame
+    addl $4, %esp   // eliminem return EIP
+    popl %edx
+    popl %ecx
+
+    cmpl $0, %eax   // errno management: if (EAX < 0) { errno = -EAX; EAX = -1; }
+    jge 1f
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+
+1:
+    movl %ebp, %esp
+    popl %ebp
     ret
 
 ENTRY(write)
-    // The parameters of the stack must be copied to the registers EDX, ECX, EBX, ESI, EDI, EBP.
-    push %ebp;
-    movl %esp, %ebp;
+    pushl %ebp
+    movl %esp, %ebp
 
-    movl 8(%ebp), %edx;
-    movl 12(%ebp), %ecx;
-    movl 16(%ebp), %ebx;
+    movl 8(%ebp),  %edx    // fd   -> EDX
+    movl 12(%ebp), %ecx    // buf  -> ECX
+    movl 16(%ebp), %ebx    // size -> EBX
 
-    movl $4, %eax;
+    pushl %ecx                      // guardem ECX
+    pushl %edx                      // guardem EDX
+    pushl $after_sysenter_write     // user return EI
+    pushl %ebp                      // creem fake frame link
+    movl %esp, %ebp                
 
-    sysenter;
+    movl $4, %eax
+    sysenter
 
-    mov %eax, 24(%esp);
+after_sysenter_write:
+    popl %ebp       //desfem frame
+    addl $4, %esp
+    popl %edx
+    popl %ecx
 
-    popl %ebp;
+    cmpl $0, %eax   //errno management
+    jge 2f
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+2:
+    movl %ebp, %esp
+    popl %ebp
     ret
