@@ -80,6 +80,7 @@ void clock_handler();
 void pf_handler();
 void system_call_handler();
 void syscall_handler_sysenter();
+void writeMSR(unsigned long msr, unsigned long value);
 
 void keyboard_routine() {
   unsigned char b;
