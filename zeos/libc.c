@@ -6,6 +6,8 @@
 
 #include <types.h>
 
+#include <errno.h>
+
 int errno;
 
 void itoa(int a, char *b)
@@ -41,5 +43,40 @@ int strlen(char *a)
   while (a[i]!=0) i++;
   
   return i;
+}
+
+void perror(void){
+  char error[3];
+  
+  switch (errno)
+  {
+    // check_fd errors
+    case EBADF:
+      write(1, "Bad file number\n", 16);
+      break;
+    
+    case EACCES:  
+      write(1, "Permission denied\n", 18);
+      break;
+
+    // sys_write errors
+    case EFAULT:
+      write(1, "Bad address\n", 12);
+      break;
+    
+    case EINVAL:
+      write(1, "Invalid argument\n", 17);
+      break;
+
+    // sys_ni_syscall error
+    case ENOSYS:
+      write(1, "Function (Syscall) not implemented\n", 25);
+      break;
+    
+    // "user" error quan es retorna -1
+    default:
+      write(1, "Operation not permitted\n", 23);
+      break;
+  }
 }
 
