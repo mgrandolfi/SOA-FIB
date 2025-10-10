@@ -16,6 +16,8 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
 }
 #endif
 
+struct list_head freequeue; //declarem la llista de processos lliures
+struct list_head readyqueue; //declarem la llista de processos a punt per ser executats
 extern struct list_head blocked;
 
 
@@ -65,7 +67,8 @@ void init_task1(void)
 
 void init_sched()
 {
-
+	freequeue.next = freequeue.prev = &freequeue; //inicialitzem la llista de processos lliures
+	readyqueue.next = readyqueue.prev = &readyqueue; //inicialitzem la llista de processos a punt per ser executats
 }
 
 struct task_struct* current()
