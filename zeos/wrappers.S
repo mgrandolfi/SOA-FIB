@@ -4,6 +4,10 @@ ENTRY(gettime)
     pushl %ebp
     movl %esp, %ebp
 
+    pushl %ebx
+    pushl %esi
+    pushl %edi
+
     pushl %ecx                      // guardem ECX
     pushl %edx                      // guardem EDX
     pushl $after_sysenter_gettime   // user return EIP per al sysexit
@@ -19,14 +23,11 @@ after_sysenter_gettime:
     popl %edx
     popl %ecx
 
-    cmpl $0, %eax   // errno management: if (EAX < 0) { errno = -EAX; EAX = -1; }
-    jge gettime_return
-    negl %eax
-    movl %eax, errno
-    movl $-1, %eax
+    popl %edi       // restaurem valors
+    popl %esi
+    popl %ebx
 
-gettime_return:
-    movl %ebp, %esp
+    movl %ebp, %esp // no fem error management a gettime
     popl %ebp
     ret
 
@@ -37,6 +38,10 @@ ENTRY(write)
     movl 8(%ebp),  %edx    // fd   -> EDX
     movl 12(%ebp), %ecx    // buf  -> ECX
     movl 16(%ebp), %ebx    // size -> EBX
+
+    pushl %ebx
+    pushl %esi
+    pushl %edi
 
     pushl %ecx                      // guardem ECX
     pushl %edx                      // guardem EDX
@@ -52,6 +57,10 @@ after_sysenter_write:
     addl $4, %esp
     popl %edx
     popl %ecx
+
+    popl %edi       //restaurem els valors
+    popl %esi
+    popl %ebx
 
     cmpl $0, %eax   // errno management
     jge write_return
