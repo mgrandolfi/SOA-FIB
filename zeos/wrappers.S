@@ -72,3 +72,41 @@ write_return:
     movl %ebp, %esp
     popl %ebp
     ret
+
+ENTRY(fork)
+    pushl %ebp
+    movl %esp, %ebp
+
+    pushl %ebx
+    pushl %esi
+    pushl %edi
+
+    pushl %ecx                      // guardem ECX
+    pushl %edx                      // guardem EDX
+    pushl $after_sysenter_fork      // user return EIP per al sysexit
+    pushl %ebp                      // fake frame link
+    movl %esp, %ebp                 // EBP ara apunta al frame del kernel
+
+    movl $2, %eax
+    sysenter                        // trap -> kernel
+
+after_sysenter_fork:
+    popl %ebp       // desfem el fake frame
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    popl %edi       //restaurem els valors
+    popl %esi
+    popl %ebx
+
+    cmpl $0, %eax   // errno management
+    jge fork_return
+    negl %eax
+    movl %eax, errno
+    movl $-1, %eax
+
+fork_return:
+    movl %ebp, %esp
+    popl %ebp
+    ret

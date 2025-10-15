@@ -76,6 +76,14 @@ void init_task1(void)
 	set_cr3(task[1].task.dir_pages_baseAddr);
 }
 
+void task_switch(union task_union*t)
+{
+	//fem push ebp al .S
+	set_cr3(t->task.dir_pages_baseAddr);
+	tss.esp0 = KERNEL_ESP(&t->task);
+	writeMSR(0x175, KERNEL_ESP(&t->task));
+	switch_stack(&(current()->stack_pointer),t->stack);
+}
 
 void init_sched()
 {
