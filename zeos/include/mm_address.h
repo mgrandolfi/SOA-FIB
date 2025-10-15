@@ -4,12 +4,12 @@
 #define ENTRY_DIR_PAGES       0
 
 #define TOTAL_PAGES 1024
-#define NUM_PAG_KERNEL 256
+#define NUM_PAG_KERNEL 256 //s'ha de sumar aixo?
 #define PAG_LOG_INIT_CODE (PAG_LOG_INIT_DATA+NUM_PAG_DATA)
 #define FRAME_INIT_CODE (PH_USER_START>>12)
-#define NUM_PAG_CODE 8
+#define NUM_PAG_CODE 8 //s'ha de sumar aixo?
 #define PAG_LOG_INIT_DATA (L_USER_START>>12)
-#define NUM_PAG_DATA 20
+#define NUM_PAG_DATA 20 //s'ha de sumar aixo?
 #define PAGE_SIZE 0x1000
 
 /* Memory distribution */
