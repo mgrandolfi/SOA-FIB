@@ -20,6 +20,7 @@ struct list_head freequeue; //declarem la llista de processos lliures
 struct list_head readyqueue; //declarem la llista de processos a punt per ser executats
 extern struct list_head blocked;
 
+struct task_struct *idle_task;
 
 /* get_DIR - Returns the Page Directory address for task 't' */
 page_table_entry * get_DIR (struct task_struct *t) 
@@ -62,6 +63,17 @@ void init_idle (void)
 
 void init_task1(void)
 {
+	// (1) Assign PID = 1 to the init process.
+	task[1].task.PID = 1;
+	// (2) Allocate a new page directory for the process address space.
+	allocate_DIR(&task[1].task);
+	// (3) Set up its user address space (code and data pages).
+	set_user_pages(&task[1].task);
+	// (4) Update the TSS to point to the new kernel stack and configure sysenter MSR.
+	tss.esp0 = KERNEL_ESP(&task[1]);
+	writeMSR(0x175, INITIAL_ESP);
+	// (5) Set its page directory as the current directory.
+	set_cr3(task[1].task.dir_pages_baseAddr);
 }
 
 
