@@ -58,6 +58,14 @@ void cpu_idle(void)
 
 void init_idle (void)
 {
+	// agafem el primer element lliure de la freequeue
+	struct list_head *free_list = list_first(&freequeue);
+	// l'eliminem ja que no es podrà fer servir per cap altre procés
+	list_del(free_list);
+	/* fem que el list_head (que es un element de la freequeue) apunti a un
+	 * a un task struct (l'assignem a un task struct específic, en aquest cas l'idle)
+	 */ 
+	&idle_task.PID = 0;
 
 }
 
@@ -87,8 +95,17 @@ void task_switch(union task_union*t)
 
 void init_sched()
 {
-	freequeue.next = freequeue.prev = &freequeue; //inicialitzem la llista de processos lliures
-	readyqueue.next = readyqueue.prev = &readyqueue; //inicialitzem la llista de processos a punt per ser executats
+	INIT_LIST_HEAD(&freequeue);  //inicialitzem la llista de processos lliures
+	INIT_LIST_HEAD(&readyqueue); //inicialitzem la llista de processos a punt per ser executats
+	INIT_LIST_HEAD(&blocked);    //inicialitzem la llista de processos bloquejats
+	
+	for (int i = 0; i < NR_TASKS; ++i) {
+		// task[i].task.list:
+		// 1. union task_union task[i] (NR_TASK especific)
+		// 2. task = task_struct 
+		// 3. list_head que apunta al task_struct
+		list_add(&(task[i].task.list), &freequeue);
+	}
 }
 
 struct task_struct* current()
