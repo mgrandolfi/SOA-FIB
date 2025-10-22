@@ -62,11 +62,16 @@ void init_idle (void)
 	struct list_head *free_list = list_first(&freequeue);
 	// l'eliminem ja que no es podrà fer servir per cap altre procés
 	list_del(free_list);
-	/* fem que el list_head (que es un element de la freequeue) apunti a un
-	 * a un task struct (l'assignem a un task struct específic, en aquest cas l'idle)
-	 */ 
-	&idle_task.PID = 0;
-
+	// fem que el list_head apunti a un a un task struct
+	struct task_struct *idle_task_struct = list_head_to_task_struct(free_list);
+	idle_struct.PID = 0;
+	
+	allocate_DIR(idle_task_struct); // li assignem un directori de pàgines
+	
+	// inicialitzem el context d'execució:
+    // col·loquem la direcció de la funció cpu_idle al tope de la pila del procés
+	union task_union *idle_task_union = (union task_union*) idle_task_struct; // obtenim la unió task_union del procés idle
+    idle_task_union->stack[KERNEL_STACK_SIZE - 1] = (unsigned long)&cpu_idle;
 }
 
 void init_task1(void)
