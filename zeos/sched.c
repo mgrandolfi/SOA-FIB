@@ -59,42 +59,54 @@ void cpu_idle(void)
 void init_idle (void)
 {
 	// agafem el primer element lliure de la freequeue
-	struct list_head *free_list = list_first(&freequeue);
+	struct list_head *first_free_pcb = list_first(&freequeue);
 	// l'eliminem ja que no es podrà fer servir per cap altre procés
-	list_del(free_list);
+	list_del(first_free_pcb);
 	// fem que el list_head apunti a un a un task struct
-	struct task_struct *idle_task_struct = list_head_to_task_struct(free_list);
-	idle_struct.PID = 0;
+	struct task_struct *idle_task_struct = list_head_to_task_struct(first_free_pcb);
+	idle_task_struct->PID = 0;
 	
 	allocate_DIR(idle_task_struct); // li assignem un directori de pàgines
 	
 	// inicialitzem el context d'execució:
-    // col·loquem la direcció de la funció cpu_idle al tope de la pila del procés
+    // col·loquem la direcció de la funció cpu_idle "a sobre" de l'EBP inicial (ret es consumirà després del pop ebp)
 	union task_union *idle_task_union = (union task_union*) idle_task_struct; // obtenim la unió task_union del procés idle
-    idle_task_union->stack[KERNEL_STACK_SIZE - 1] = (unsigned long)&cpu_idle;
+    unsigned long *sp = &idle_task_union->stack[KERNEL_STACK_SIZE];
+	*--sp = (unsigned long) &cpu_idle;  				// adreça de retorn
+	*--sp = 0;                          				// EBP inicial
+	idle_task_struct->kernel_esp = (unsigned long)sp;
+
+	idle_task = idle_task_struct;
 }
 
 void init_task1(void)
 {
-	// (1) Assign PID = 1 to the init process.
-	task[1].task.PID = 1;
-	// (2) Allocate a new page directory for the process address space.
-	allocate_DIR(&task[1].task);
-	// (3) Set up its user address space (code and data pages).
-	set_user_pages(&task[1].task);
-	// (4) Update the TSS to point to the new kernel stack and configure sysenter MSR.
-	tss.esp0 = KERNEL_ESP(&task[1]);
-	writeMSR(0x175, INITIAL_ESP);
-	// (5) Set its page directory as the current directory.
-	set_cr3(task[1].task.dir_pages_baseAddr);
+	// agafem el primer element lliure de la freequeue
+	struct list_head *first_free_pcb = list_first(&freequeue);
+	// l'eliminem ja que no es podrà fer servir per cap altre procés
+	list_del(first_free_pcb);
+	// fem que el list_head apunti a un task struct
+	struct task_struct *init_task_struct = list_head_to_task_struct(first_free_pcb);
+	init_task_struct->PID = 1;
+	
+	allocate_DIR(init_task_struct); // li assignem un directori de pàgines
+
+	set_user_pages(init_task_struct); // inicialitzem les pàgines d'usuari
+
+	union task_union *init_task_union = (union task_union*)init_task_struct;
+	tss.esp0 = KERNEL_ESP(init_task_union); // actualitzem la pila d'entrada del kernel per a transicions de privilegis
+
+	writeMSR(0x175, tss.esp0); // establim la pila del fast-syscall
+
+	set_cr3(init_task_struct->dir_pages_baseAddr); // convertim l'espai d'adreces al current
 }
 
 void task_switch(union task_union*t)
 {
 	//fem push ebp al .S
 	set_cr3(t->task.dir_pages_baseAddr);
-	tss.esp0 = KERNEL_ESP(&t->task);
-	writeMSR(0x175, KERNEL_ESP(&t->task));
+	tss.esp0 = KERNEL_ESP(t);
+	writeMSR(0x175, tss.esp0);
 	switch_stack(&(current()->stack_pointer),t->stack);
 }
 

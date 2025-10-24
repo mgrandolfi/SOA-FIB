@@ -18,6 +18,7 @@ struct task_struct {
   int PID;			/* Process ID. This MUST be the first field of the struct. */
   page_table_entry * dir_pages_baseAddr;
   struct list_head list;
+  unsigned long kernel_esp;    /* saved kernel stack for switches */
 };
 
 union task_union {
@@ -56,5 +57,9 @@ void sched_next_rr();
 void update_process_state_rr(struct task_struct *t, struct list_head *dest);
 int needs_sched_rr();
 void update_sched_data_rr();
+
+//new headers
+
+void inner_task_switch(union task_union *new);
 
 #endif  /* __SCHED_H__ */
