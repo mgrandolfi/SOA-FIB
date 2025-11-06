@@ -156,3 +156,11 @@ ENTRY(task_switch)
     movl %ebp, %esp
     popl %ebp
     ret
+
+ENTRY(switch_context)
+    movl 4(%esp), %eax
+    movl %ebp, (%eax)
+    movl 8(%esp), %esp
+    
+    popl %ebp
+    ret

@@ -16,6 +16,13 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
 }
 #endif
 
+struct task_struct *list_head_to_task_struct(struct list_head *l)
+{
+    // fem que el list_head apunti al task_struct
+    return list_entry(l, struct task_struct, list);
+}
+
+
 struct list_head freequeue; //declarem la llista de processos lliures
 struct list_head readyqueue; //declarem la llista de processos a punt per ser executats
 extern struct list_head blocked;
@@ -101,13 +108,13 @@ void init_task1(void)
 	set_cr3(init_task_struct->dir_pages_baseAddr); // convertim l'espai d'adreces al current
 }
 
-void task_switch(union task_union*t)
+void inner_task_switch(union task_union*new)
 {
 	//fem push ebp al .S
-	set_cr3(t->task.dir_pages_baseAddr);
-	tss.esp0 = KERNEL_ESP(t);
+	tss.esp0 = KERNEL_ESP(new);
 	writeMSR(0x175, tss.esp0);
-	switch_stack(&(current()->stack_pointer),t->stack);
+	set_cr3(get_DIR(&new->task)); // canviem l'espai d'adreces
+	switch_context(&current()->kernel_esp, new->task.kernel_esp);
 }
 
 void init_sched()

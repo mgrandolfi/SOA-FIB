@@ -62,4 +62,6 @@ void update_sched_data_rr();
 
 void inner_task_switch(union task_union *new);
 
+void switch_context(unsigned long *old_ebp_slot, unsigned long new_esp);
+
 #endif  /* __SCHED_H__ */
