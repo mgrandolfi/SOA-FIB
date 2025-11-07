@@ -30,6 +30,8 @@ extern struct list_head blocked;
 struct task_struct *idle_task;
 struct task_struct *init_task;
 
+int total_ticks;
+
 /* get_DIR - Returns the Page Directory address for task 't' */
 page_table_entry * get_DIR (struct task_struct *t) 
 {
@@ -137,6 +139,59 @@ void init_sched()
 	}
 }
 
+int get_quantum (struct task_struct t){
+    return t->quantum; 
+}
+
+void set_quantum (struct task_structt, int new_quantum) {
+    t->quantum = new_quantum; 
+}
+
+int needs_sched_rr()
+{
+    struct task_struct c = current();
+
+    // If current exhausted its slice -> schedule
+    if (c->remaining_ticks <= 0) return 1;
+
+    // If we're running idle and there is something ready -> schedule
+    if (c == idle_task && !list_empty(&readyqueue)) return 1;
+
+    return 0;
+}
+	
+void update_sched_data_rr()
+{
+    struct task_struct *c = current();
+    if (c->remaining_ticks > 0) c->remaining_ticks--;
+}
+
+void update_process_state_rr(struct task_struct t, struct list_headdst_queue) {
+    // 1) If the task is currently in some queue, unlink it first
+    if (t->state != ST_RUN) list_del(&t->list);
+
+    // 2) Decide destination
+    if (dst_queue == NULL) {                 // RUNNING: not in any queue
+        t->state = ST_RUN;
+        return;
+    }
+
+    if (dst_queue == &readyqueue) {          // READY: FIFO for RR
+        t->state = ST_READY;
+        list_add_tail(&t->list, &readyqueue);
+    } else if (dst_queue == &blocked) {      // BLOCKED: any wait queue
+        t->state = ST_BLOCKED;
+        list_add_tail(&t->list, &blocked);
+    } else if (dst_queue == &freequeue) {    // FREED PCB
+        / state value doesn’t matter operationally while in freequeue */
+        t->state = ST_BLOCKED;
+        list_add(&t->list, &freequeue);
+    } else {
+        t->state = ST_BLOCKED;
+        list_add_tail(&t->list, dst_queue);
+    }
+}
+
 struct task_struct* current()
 {
   int ret_value;
@@ -147,6 +202,20 @@ struct task_struct* current()
   );
   return (struct task_struct*)(ret_value&0xfffff000);
 }
+
+void init_stats(struct stats *s) {
+    s->user_ticks = 0;
+    s->system_ticks = 0;
+    s->blocked_ticks = 0;
+    s->ready_ticks = 0;
+    s->elapsed_total_ticks = get_ticks();
+    s->total_trans = 0;
+    s->remaining_ticks = get_ticks();
+}
+
+//################################################################################
+// Debug functions for task switching
+//################################################################################
 
 static int dbg_sw = 0;
 void dbg_toggle_switch(void) { dbg_sw ^= 1; }
