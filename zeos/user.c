@@ -17,15 +17,15 @@ static int uitoa(unsigned n, char *buf, int buflen)
     return 1;
   }
 	char t[12];
-  int i=0;
-	while (n && i<(int)sizeof(t)) {
+  	int i = 0;
+	while (n && i < (int)sizeof(t)) {
     t[i++] = '0' + (n%10);
     n /= 10;
   }
 	if (i >= buflen) i = buflen-1;
 	for (int j = 0; j < i; ++j) buf[j] = t[i-1-j];
 	buf[i] = 0;
-  return i;
+  	return i;
 }
 
 int __attribute__ ((__section__(".text.main")))
