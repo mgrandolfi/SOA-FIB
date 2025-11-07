@@ -75,11 +75,12 @@ extern struct list_head freequeue;
 
 int sys_fork()
 {
+
   int PID=-1;
 
   // creates the child process
 
-  //if the freequeue is empty means there is no space for a new process.
+  //if the freeque is empty means there is no space for a new process.
   if (list_empty(&freequeue)) return -ENOMEM;  // Theres no free PCB task_struct
   
 
@@ -113,13 +114,42 @@ int sys_fork()
       data_frame[i] = f; //store allocated frame
   }
 
-  page_table_entry* PT_child = get_PT(child_task_struct);
-  page_table_entry* PT_parent = get_PT(current());
+  page_table_entry* PTC = get_PT(child_task_struct);
+  page_table_entry* PTP = get_PT(current());
 
-  for (pag = 0; pag < NUM_PAG_KERNEL; pag++) {
-      set_ss_pag(PT_child, pag, get_frame(PT_parent, pag));
+
+  for (int pag = 0; pag < NUM_PAG_KERNEL; pag++) {
+        set_ss_pag(PTC, pag, get_frame(PTP, pag));
   }
-  
+
+  //f) 
+  for (int pag = PAG_LOG_INIT_DATA; pag < PAG_LOG_INIT_DATA+NUM_PAG_DATA; pag++) {
+       
+        void *parent_addr = (void*)(pag << 12); // take out the offset
+        
+        // temporal ubication 
+        int temp_page = pag + NUM_PAG_DATA + NUM_PAG_CODE;
+        void *temp_addr = (void*)(temp_page << 12);
+        
+        // 1. Crear mapeo temporal: hacer accesible la página física del hijo 
+        //    desde el espacio de direcciones del padre
+        unsigned int child_frame = get_frame(PTC, pag);
+        set_ss_pag(PTP, temp_page, child_frame);
+        
+        // 2. Copiar los datos del padre al espacio del hijo
+        copy_data(parent_addr, temp_addr, PAGE_SIZE);
+        
+        // 3. Eliminar el mapeo temporal
+        del_ss_pag(PTP, temp_page);
+    }
+
+    //g) 
+    child_task_struct->PID = get_next_pid(); 
+    child_task_struct->parent = current(); 
+
+    //h) initialize the fields of the task_struct that are not common to the child.
+	  INIT_LIST_HEAD(&child_task_struct->list);
+
   return PID;
 }
 
