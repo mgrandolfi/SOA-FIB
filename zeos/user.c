@@ -28,27 +28,21 @@ static int uitoa(unsigned n, char *buf, int buflen)
   return i;
 }
 
-static void clear_screen_user(void)
-{
-	// fem scroll amb línies en blanc
-	for (int i = 0; i < 25; ++i) write(1, " \n", 1);
-}
-
 int __attribute__ ((__section__(".text.main")))
   main(void)
 {
   /* Next line, tries to move value 0 to CR3 register. This register is a privileged one, and so it will raise an exception */
     /* __asm__ __volatile__ ("mov %0, %%cr3"::"r" (0) ); */
 
-  //char* p = 0;
-  //*p = 'x';
+	//char* p = 0;
+	//*p = 'x';
 
-  write(1, "[WRITE] hola\n", 13);
+  	write(1, "[WRITE] hola\n", 13);
 
 	// getpid
 	int pid = getpid();
 	char b[32];
-  int len = uitoa((unsigned)pid, b, sizeof(b));
+	int len = uitoa((unsigned)pid, b, sizeof(b));
 	write(1, "[GETPID] pid=", 13);
 	write(1, b, len);
 
@@ -73,8 +67,6 @@ int __attribute__ ((__section__(".text.main")))
 			for (volatile unsigned i=0; i<1000; ++i) { }
 		}
 	}*/
-
-  clear_screen_user();
 
 	write(1, "=== ZEOS DEMO KEYS ===\n", 23);
 	write(1, "t: toggle logs task_switch\n", 27);
