@@ -196,6 +196,8 @@ void sys_exit()
       del_ss_pag(pt, idx);                  // remove mapping first
       free_frame(frame);                    // release physical frame
     }
+
+    
   }
   set_cr3(get_DIR(p));                      // flush TLB for current PT
 
