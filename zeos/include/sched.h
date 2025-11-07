@@ -20,6 +20,9 @@ struct task_struct {
   struct list_head list;
   unsigned long kernel_esp;    /* saved kernel stack for switches */
   int quantum;
+  enum state_t state;
+  int remaining_ticks;
+  struct stats p_stats;
 };
 
 union task_union {
