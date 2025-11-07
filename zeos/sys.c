@@ -21,6 +21,9 @@
 #define ESCRIPTURA 1
 
 extern int zeos_ticks;
+extern struct list_head readyqueue;
+extern struct list_head blocked;
+extern struct task_struct *idle_task;
 
 int check_fd(int fd, int permissions)
 {
@@ -145,10 +148,10 @@ int sys_fork(void)
 
   child_kesp[1] = (unsigned long)ret_from_fork;
 
+  child->parent = parent;
   INIT_LIST_HEAD(&child->children);
   INIT_LIST_HEAD(&child->sibling);
   child->pending_unblocks = 0;
-  child->parent = parent;
   list_add_tail(&child->sibling, &parent->children);
 
   // j) enqueue child as ready
@@ -170,9 +173,19 @@ void sys_exit()
 {  
   struct task_struct *p = current();
 
+  if (p->parent) list_del(&p->sibling);
+
   if (p->PID == 1) {
     printk("\nThe task 1 cannot exit\n");
     return;
+  }
+
+  struct list_head *pos, *n;
+  list_for_each_safe(pos, n, &p->children) {
+    struct task_struct *ch = list_entry(pos, struct task_struct, sibling);
+    list_del(pos);
+    ch->parent = idle_task;
+    list_add_tail(&ch->sibling, &idle_task->children);
   }
 
   page_table_entry *pt = get_PT(p);
@@ -189,4 +202,43 @@ void sys_exit()
   // Return PCB to the free pool and switch to next runnable task
   update_process_state_rr(p, &freequeue);
   sched_next_rr();
+}
+
+int sys_block(void)
+{
+  struct task_struct *p = current();
+
+  if (p->pending_unblocks > 0) {
+    --p->pending_unblocks;
+    return 0;
+  }
+
+  update_process_state_rr(p, &blocked);
+  sched_next_rr();
+  return 0;
+
+}
+
+static struct task_struct *find_child_by_pid(struct task_struct *parent, int pid)
+{
+  struct list_head *pos;
+  list_for_each(pos, &parent->children) {
+    struct task_struct *ch = list_entry(pos, struct task_struct, sibling);
+    if (ch->PID == pid) return ch;
+  }
+  return 0;
+}
+
+int sys_unblock(int pid)
+{
+  struct task_struct *me = current();
+  struct task_struct *ch = find_child_by_pid(me, pid);
+  if (!ch) return -1;
+
+  if (ch->state == ST_BLOCKED) {
+    update_process_state_rr(ch, &readyqueue);
+  } else {
+    ++ch->pending_unblocks;
+  }
+  return 0;
 }

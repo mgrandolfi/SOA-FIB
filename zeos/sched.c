@@ -76,6 +76,11 @@ void init_idle (void)
 	struct task_struct *idle_task_struct = list_head_to_task_struct(first_free_pcb);
 	idle_task_struct->PID = 0;
 	
+	INIT_LIST_HEAD(&idle_task->children);
+	INIT_LIST_HEAD(&idle_task->sibling);
+	idle_task->parent = idle_task;
+	idle_task->pending_unblocks = 0;
+
 	set_quantum(idle_task_struct, DEFAULT_QUANTUM);
   	idle_task_struct->remaining_ticks = 0;
   	idle_task_struct->state = ST_RUN;
@@ -103,6 +108,11 @@ void init_task1(void)
 	struct task_struct *init_task_struct = list_head_to_task_struct(first_free_pcb);
 	init_task_struct->PID = 1;
 	
+	INIT_LIST_HEAD(&init_task->children);
+	INIT_LIST_HEAD(&init_task->sibling);
+	init_task->parent = idle_task;         /* parent is idle (reaper) */
+	init_task->pending_unblocks = 0;
+
 	set_quantum(init_task_struct, DEFAULT_QUANTUM);
   	init_task_struct->remaining_ticks = DEFAULT_QUANTUM;
   	update_process_state_rr(init_task_struct, &readyqueue);

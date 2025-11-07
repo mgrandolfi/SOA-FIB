@@ -30,6 +30,7 @@ struct task_struct {
   int pending_unblocks;
   struct task_struct *parent;
   struct list_head children;
+  struct list_head sibling;
 };
 
 union task_union {
@@ -40,6 +41,8 @@ union task_union {
 extern union task_union task[NR_TASKS]; /* Vector de tasques */
 
 extern struct task_struct *init_task;
+
+extern struct list_head blocked;
 
 #define KERNEL_ESP(t)       	(DWord) &(t)->stack[KERNEL_STACK_SIZE]
 
