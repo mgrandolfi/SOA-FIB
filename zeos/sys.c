@@ -162,5 +162,25 @@ int ret_from_fork(void)
 
 void sys_exit()
 {  
+  struct task_struct *p = current();
 
+  if (p->PID == 1) {
+    printk("\nThe task 1 cannot exit\n");
+    return;
+  }
+
+  page_table_entry *pt = get_PT(p);
+  for (int i = 0; i < NUM_PAG_DATA; ++i) {
+    unsigned idx = PAG_LOG_INIT_DATA + i;
+    if (pt[idx].bits.present) {
+      int frame = pt[idx].bits.pbase_addr;  // frame number as stored in PT
+      del_ss_pag(pt, idx);                  // remove mapping first
+      free_frame(frame);                    // release physical frame
+    }
+  }
+  set_cr3(get_DIR(p));                      // flush TLB for current PT
+
+  // Return PCB to the free pool and switch to next runnable task
+  update_process_state_rr(p, &freequeue);
+  sched_next_rr();
 }
