@@ -25,7 +25,6 @@ struct task_struct {
   int quantum;
   enum state_t state;
   int remaining_ticks;
-  struct stats p_stats;
 
   int pending_unblocks;
   struct task_struct *parent;
