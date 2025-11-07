@@ -86,7 +86,7 @@ int sys_fork(void)
   union task_union *u_parent = (union task_union*)parent;
   union task_union *u_child  = (union task_union*)child;
 
-  // b) inherit system data: copy full task_union (PCB + kernel stack)
+  // b) inherit system data (PCB + kernel stack)
   copy_data(u_parent, u_child, sizeof(union task_union));
 
   // c) new page directory for child
@@ -94,54 +94,59 @@ int sys_fork(void)
 
   // d) allocate frames for child user data+stack
   int frames[NUM_PAG_DATA];
-  for (int i = 0; i < NUM_PAG_DATA; ++i) {
+  int i;
+  for (i = 0; i < NUM_PAG_DATA; ++i) {
     int f = alloc_frame();
     if (f < 0) {
-      for (int j = 0; j < i; ++j) free_frame(frames[j]);
-      list_add(&child->list, &freequeue);
+      while (--i >= 0) free_frame(frames[i]);
+      list_add_tail(&child->list, &freequeue);
       return -ENOMEM;
     }
     frames[i] = f;
   }
 
-  // e) initialize child's address space
+  // e) init child's address space
   page_table_entry *pt_parent = get_PT(parent);
   page_table_entry *pt_child  = get_PT(child);
 
-  //   e.i) share system and user code pages with parent
-  for (int i = 0; i < NUM_PAG_KERNEL; ++i) pt_child[i] = pt_parent[i];
-  for (int i = 0; i < NUM_PAG_CODE;   ++i)
+  //   e.i) share kernel & user code
+  for (i = 0; i < NUM_PAG_KERNEL; ++i) pt_child[i] = pt_parent[i];
+  for (i = 0; i < NUM_PAG_CODE;   ++i)
     pt_child[PAG_LOG_INIT_CODE + i] = pt_parent[PAG_LOG_INIT_CODE + i];
 
-  //   e.ii) map child’s user data+stack to newly allocated frames
-  for (int i = 0; i < NUM_PAG_DATA; ++i)
+  //   e.ii) map data+stack to new frames
+  for (i = 0; i < NUM_PAG_DATA; ++i)
     set_ss_pag(pt_child, PAG_LOG_INIT_DATA + i, frames[i]);
 
-  // f) inherit user data: temporary mappings in parent, copy, remove, flush TLB
-  unsigned tmp = PAG_LOG_INIT_CODE + NUM_PAG_CODE; // free logical window after code
-  for (int i = 0; i < NUM_PAG_DATA; ++i) {
+  // f) copy parent data+stack -> child frames via a temp window in parent's PT
+  int tmp = PAG_LOG_INIT_CODE + NUM_PAG_CODE; // free window after user code
+  for (i = 0; i < NUM_PAG_DATA; ++i) {
     set_ss_pag(pt_parent, tmp + i, frames[i]);
-    void *src = (void*)(L_USER_START + i*PAGE_SIZE);
-    void *dst = (void*)((tmp + i) * PAGE_SIZE);
-    copy_data(src, dst, PAGE_SIZE);
+    copy_data((void*)(L_USER_START + i*PAGE_SIZE),
+              (void*)((tmp + i) << 12),
+              PAGE_SIZE);
     del_ss_pag(pt_parent, tmp + i);
   }
-  set_cr3(get_DIR(parent));  // flush parent TLB after deleting temps
+  //   (flush TLB after removing temp mappings)
+  set_cr3(get_DIR(parent));  // f.C: really disable parent's access to child pages. :contentReference[oaicite:3]{index=3}
 
-  // g) assign PID
-  static int next_pid = 2;   // 0 idle, 1 init
+  // g) assign PID (distinct from task array position)
+  static int next_pid = 2;
   child->PID = next_pid++;
 
-  // h) fields not common to the child
+  // h+i) prepare child kernel stack so a task_switch resumes in user mode
+  // Rebase the saved kernel_esp from parent's stack to child's stack
+  unsigned long parent_off =
+      (unsigned long)u_parent->task.kernel_esp - (unsigned long)u_parent->stack;
+  unsigned long *child_kesp =
+      (unsigned long*)((unsigned long)u_child->stack + parent_off);
+
+  u_child->task.kernel_esp = (unsigned long)child_kesp;
+
+  child_kesp[1] = (unsigned long)ret_from_fork;
+
+  // j) enqueue child as ready
   child->state = ST_READY;
-
-  // i) prepare child stack so a task_switch returns via the syscall epilogue
-  //    Switch code will set ESP = child->kernel_esp; then "pop %ebp; ret".
-  //    Make that RET go to ret_from_fork(), which returns 0 in %eax.
-  unsigned long *kesp = (unsigned long*)(u_child->task.kernel_esp);
-  kesp[1] = (unsigned long)ret_from_fork;  // return address after saved EBP
-
-  // j) enqueue child
   list_add_tail(&child->list, &readyqueue);
 
   // k) return child's pid to the parent
@@ -157,5 +162,5 @@ int ret_from_fork(void)
 
 void sys_exit()
 {  
-  
+
 }
