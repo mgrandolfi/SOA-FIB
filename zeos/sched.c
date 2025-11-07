@@ -76,18 +76,21 @@ void init_idle (void)
 	list_del(first_free_pcb);
 	// fem que el list_head apunti a un a un task struct
 	struct task_struct *idle_task_struct = list_head_to_task_struct(first_free_pcb);
-	idle_task_struct->PID = 0;
 	
-	INIT_LIST_HEAD(&idle_task->children);
-	INIT_LIST_HEAD(&idle_task->sibling);
-	idle_task->parent = idle_task;
-	idle_task->pending_unblocks = 0;
+	idle_task = idle_task_struct;
 
-	set_quantum(idle_task_struct, DEFAULT_QUANTUM);
-  	idle_task_struct->remaining_ticks = 0;
-  	idle_task_struct->state = ST_RUN;
+    idle_task->PID = 0;
+    set_quantum(idle_task, DEFAULT_QUANTUM);
+    idle_task->state = ST_READY;   // it won’t be queued; scheduler picks it when readyqueue is empty
 
-	allocate_DIR(idle_task_struct); // li assignem un directori de pàgines
+    // parenting (required by §4.9)
+    INIT_LIST_HEAD(&idle_task->children);
+    INIT_LIST_HEAD(&idle_task->sibling);
+    idle_task->parent = idle_task;         // self as reaper
+    idle_task->pending_unblocks = 0;
+
+
+	allocate_DIR(idle_task); // li assignem un directori de pàgines
 	
 	// inicialitzem el context d'execució:
     // col·loquem la direcció de la funció cpu_idle "a sobre" de l'EBP inicial (ret es consumirà després del pop ebp)
@@ -96,8 +99,6 @@ void init_idle (void)
 	*--sp = (unsigned long) &cpu_idle;  				// adreça de retorn
 	*--sp = 0;                          				// EBP inicial
 	idle_task_struct->kernel_esp = (unsigned long)sp;
-
-	idle_task = idle_task_struct;
 }
 
 void init_task1(void)
@@ -108,29 +109,29 @@ void init_task1(void)
 	list_del(first_free_pcb);
 	// fem que el list_head apunti a un task struct
 	struct task_struct *init_task_struct = list_head_to_task_struct(first_free_pcb);
-	init_task_struct->PID = 1;
-	
-	INIT_LIST_HEAD(&init_task->children);
-	INIT_LIST_HEAD(&init_task->sibling);
-	init_task->parent = idle_task;         /* parent is idle (reaper) */
-	init_task->pending_unblocks = 0;
 
-	set_quantum(init_task_struct, DEFAULT_QUANTUM);
-  	init_task_struct->remaining_ticks = DEFAULT_QUANTUM;
-  	update_process_state_rr(init_task_struct, &readyqueue);
+	init_task = init_task_struct;
 
-	allocate_DIR(init_task_struct); // li assignem un directori de pàgines
+    init_task->PID = 1;
+    allocate_DIR(init_task);
+    
+    INIT_LIST_HEAD(&init_task->children);
+    INIT_LIST_HEAD(&init_task->sibling);
+    init_task->parent = idle_task;
+    init_task->pending_unblocks = 0;
 
-	set_user_pages(init_task_struct); // inicialitzem les pàgines d'usuari
+	set_quantum(init_task, DEFAULT_QUANTUM);
+  	init_task->remaining_ticks = DEFAULT_QUANTUM;
+  	update_process_state_rr(init_task, &readyqueue);
 
-	union task_union *init_task_union = (union task_union*)init_task_struct;
+	set_user_pages(init_task); // inicialitzem les pàgines d'usuari
+
+	union task_union *init_task_union = (union task_union*)init_task;
 	tss.esp0 = KERNEL_ESP(init_task_union); // actualitzem la pila d'entrada del kernel per a transicions de privilegis
 
 	writeMSR(0x175, tss.esp0); // establim la pila del fast-syscall
 
-	set_cr3(init_task_struct->dir_pages_baseAddr); // convertim l'espai d'adreces al current
-
-	init_task = init_task_struct;
+	set_cr3(init_task->dir_pages_baseAddr); // convertim l'espai d'adreces al current
 }
 
 void inner_task_switch(union task_union*new)

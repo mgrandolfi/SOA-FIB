@@ -46,8 +46,6 @@ int strlen(char *a)
 }
 
 void perror(void){
-  char error[3];
-  
   switch (errno)
   {
     // check_fd errors

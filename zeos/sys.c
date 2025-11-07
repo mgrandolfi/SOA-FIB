@@ -142,13 +142,13 @@ int sys_fork(void)
   // h+i) prepare child kernel stack so a task_switch resumes in user mode
   // Rebase the saved kernel_esp from parent's stack to child's stack
   unsigned long parent_off =
-      (unsigned long)u_parent->task.kernel_esp - (unsigned long)u_parent->stack;
-  unsigned long *child_kesp =
-      (unsigned long*)((unsigned long)u_child->stack + parent_off);
+    (unsigned long)u_parent->task.kernel_esp - (unsigned long)u_parent->stack;
+unsigned long *child_kesp =
+    (unsigned long*)((unsigned long)u_child->stack + parent_off);
 
   u_child->task.kernel_esp = (unsigned long)child_kesp;
-
   child_kesp[1] = (unsigned long)&ret_from_fork;
+
 
   child->parent = parent;
   INIT_LIST_HEAD(&child->children);
