@@ -147,21 +147,11 @@ void init_sched()
 	}
 }
 
-void init_stats(struct stats *s) {
-	s->user_ticks = 0;
-	s->system_ticks = 0;
-	s->blocked_ticks = 0;
-	s->ready_ticks = 0;
-	s->elapsed_total_ticks = get_ticks();
-	s->total_trans = 0;
-	s->remaining_ticks = get_ticks();
-}
-
-int get_quantum (struct task_struct t){
+int get_quantum (struct task_struct *t){
     return t->quantum; 
 }
 
-void set_quantum (struct task_structt, int new_quantum) {
+void set_quantum (struct task_struct *t, int new_quantum) {
     t->quantum = new_quantum; 
 }
 
@@ -201,7 +191,6 @@ void update_process_state_rr(struct task_struct t, struct list_headdst_queue) {
         t->state = ST_BLOCKED;
         list_add_tail(&t->list, &blocked);
     } else if (dst_queue == &freequeue) {    // FREED PCB
-        / state value doesn’t matter operationally while in freequeue */
         t->state = ST_BLOCKED;
         list_add(&t->list, &freequeue);
     } else {
@@ -212,26 +201,40 @@ void update_process_state_rr(struct task_struct t, struct list_headdst_queue) {
 
 void sched_next_rr(void)
 {
-    struct task_struct next_t;
+    struct task_struct *next;
 
     if (list_empty(&readyqueue)) {
         // Nothing ready -> run idle
-        next_t = idle_task;
+        next = idle_task;
     } else {
         // FIFO order for RR
-        struct list_heade = list_first(&readyqueue);
+        struct list_head *e = list_first(&readyqueue);
         list_del(e);
-        next_t = list_head_to_task_struct(e);
+        next = list_head_to_task_struct(e);
     }
 
     // Prepare next to run
     next_t->state = ST_RUN;
-    next_t->remaining_ticks = (next_t->quantum > 0) ? next_t->quantum : DEFAULT_QUANTUM;
+    next_t->remaining_ticks = next->quantum;
 
-    // Context switch
-    task_switch((union task_union)next_t);
+	dbg_banner_task_switch((union task_union*)next);
+    inner_task_switch((union task_union*)next);
 }
 
+void schedule(void)
+{
+    update_sched_data_rr();
+
+    if (needs_sched_rr()) {
+        if (current() != idle_task)               // idle never goes to readyqueue
+            update_process_state_rr(current(), &readyqueue);
+        sched_next_rr();
+    } else {
+        /* if we are alone and consumed the slice, just reload it */
+        struct task_struct *c = current();
+        if (c->remaining_ticks <= 0) c->remaining_ticks = get_quantum(c);
+    }
+}
 
 struct task_struct* current()
 {
