@@ -25,7 +25,7 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
 
 struct list_head freequeue; //declarem la llista de processos lliures
 struct list_head readyqueue; //declarem la llista de processos a punt per ser executats
-extern struct list_head blocked;
+struct list_head blocked;
 
 struct task_struct *idle_task;
 struct task_struct *init_task;
@@ -137,7 +137,8 @@ void init_sched()
 	INIT_LIST_HEAD(&freequeue);  //inicialitzem la llista de processos lliures
 	INIT_LIST_HEAD(&readyqueue); //inicialitzem la llista de processos a punt per ser executats
 	INIT_LIST_HEAD(&blocked);    //inicialitzem la llista de processos bloquejats
-	
+	total_ticks = 0;
+
 	for (int i = 0; i < NR_TASKS; ++i) {
 		// task[i].task.list:
 		// 1. union task_union task[i] (NR_TASK especific)

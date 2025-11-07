@@ -145,6 +145,12 @@ int sys_fork(void)
 
   child_kesp[1] = (unsigned long)ret_from_fork;
 
+  INIT_LIST_HEAD(&child->children);
+  INIT_LIST_HEAD(&child->sibling);
+  child->pending_unblocks = 0;
+  child->parent = parent;
+  list_add_tail(&child->sibling, &parent->children);
+
   // j) enqueue child as ready
   child->state = ST_READY;
   list_add_tail(&child->list, &readyqueue);
