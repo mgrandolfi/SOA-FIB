@@ -22,7 +22,6 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
     return list_entry(l, struct task_struct, list);
 }
 
-
 struct list_head freequeue; //declarem la llista de processos lliures
 struct list_head readyqueue; //declarem la llista de processos a punt per ser executats
 struct list_head blocked;
