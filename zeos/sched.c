@@ -76,6 +76,10 @@ void init_idle (void)
 	struct task_struct *idle_task_struct = list_head_to_task_struct(first_free_pcb);
 	idle_task_struct->PID = 0;
 	
+	set_quantum(idle_task_struct, DEFAULT_QUANTUM);
+  	idle_task_struct->remaining_ticks = 0;
+  	idle_task_struct->state = ST_RUN;
+
 	allocate_DIR(idle_task_struct); // li assignem un directori de pàgines
 	
 	// inicialitzem el context d'execució:
@@ -99,6 +103,10 @@ void init_task1(void)
 	struct task_struct *init_task_struct = list_head_to_task_struct(first_free_pcb);
 	init_task_struct->PID = 1;
 	
+	set_quantum(init_task_struct, DEFAULT_QUANTUM);
+  	init_task_struct->remaining_ticks = DEFAULT_QUANTUM;
+  	update_process_state_rr(init_task_struct, &readyqueue);
+
 	allocate_DIR(init_task_struct); // li assignem un directori de pàgines
 
 	set_user_pages(init_task_struct); // inicialitzem les pàgines d'usuari

@@ -147,3 +147,113 @@ fork_return:
     movl %ebp, %esp
     popl %ebp
     ret
+
+#########################################################################################
+
+ENTRY(exit) 
+    pushl %ebp
+    movl %esp, %ebp
+
+    pushl %ebx
+    pushl %esi
+    pushl %edi
+
+    pushl %ecx                      // save ECX
+    pushl %edx                      // save EDX
+
+    pushl $after_sysenter_exit      // user return EIP for sysexit
+
+    pushl %ebp                      // fake frame link
+    movl %esp, %ebp                 // EBP now points to kernel frame
+
+    movl $1, %eax                   // syscall number: exit = 1
+
+    sysenter
+
+
+after_sysenter_exit: 
+    popl %ebp
+    addl $4, %esp
+
+    popl %edx
+    popl %ecx
+
+    popl %edi
+    popl %esi
+    popl %ebx
+
+    movl %ebp, %esp
+    popl %ebp
+    ret
+
+#######################################################################################
+
+ENTRY(unblock)
+    pushl %ebp
+    movl  %esp, %ebp
+
+    pushl %ebx
+    pushl %esi
+    pushl %edi
+
+    pushl %ecx
+    pushl %edx
+
+    pushl $after_sysenter_unblock
+
+    pushl %ebp
+    movl  %esp, %ebp
+
+    movl  8(%ebp), %edx         // 1st parameter goes in EDX, pid
+    movl  $12, %eax             // SYS_unblock = 12
+
+    sysenter
+
+after_sysenter_unblock:
+    popl %ebp
+    addl $4, %esp
+
+    popl %edx
+    popl %ecx
+    popl %edi
+    popl %esi
+    popl %ebx
+
+    movl %ebp, %esp
+    popl %ebp
+
+    ret
+
+#######################################################################################
+
+ENTRY(block)
+    pushl %ebp
+    movl  %esp, %ebp
+
+    pushl %ebx
+    pushl %esi
+    pushl %edi
+    pushl %ecx
+    pushl %edx
+
+    pushl $after_sysenter_block
+
+    pushl %ebp
+    movl  %esp, %ebp
+    movl  $11, %eax
+    sysenter
+
+after_sysenter_block:
+    popl %ebp
+    addl $4, %esp
+
+    popl %edx
+    popl %ecx
+    popl %edi
+    popl %esi
+    popl %ebx
+
+    movl %ebp, %esp
+    popl %ebp
+
+    ret
