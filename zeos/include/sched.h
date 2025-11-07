@@ -41,7 +41,11 @@ extern union task_union task[NR_TASKS]; /* Vector de tasques */
 
 extern struct task_struct *init_task;
 
+extern struct list_head readyqueue;
+extern struct list_head freequeue;
 extern struct list_head blocked;
+
+extern struct task_struct *idle_task;
 
 #define KERNEL_ESP(t)       	(DWord) &(t)->stack[KERNEL_STACK_SIZE]
 
@@ -74,6 +78,8 @@ void update_process_state_rr(struct task_struct *t, struct list_head *dest);
 int needs_sched_rr();
 void update_sched_data_rr();
 void schedule(void);
+int  get_quantum(struct task_struct *t);
+void set_quantum(struct task_struct *t, int new_quantum);
 
 //new headers
 

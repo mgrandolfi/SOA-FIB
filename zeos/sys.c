@@ -25,6 +25,8 @@ extern struct list_head readyqueue;
 extern struct list_head blocked;
 extern struct task_struct *idle_task;
 
+int ret_from_fork(void);
+
 int check_fd(int fd, int permissions)
 {
   if (fd!=1) return -9; /*EBADF*/
@@ -146,7 +148,7 @@ int sys_fork(void)
 
   u_child->task.kernel_esp = (unsigned long)child_kesp;
 
-  child_kesp[1] = (unsigned long)ret_from_fork;
+  child_kesp[1] = (unsigned long)&ret_from_fork;
 
   child->parent = parent;
   INIT_LIST_HEAD(&child->children);
@@ -196,8 +198,6 @@ void sys_exit()
       del_ss_pag(pt, idx);                  // remove mapping first
       free_frame(frame);                    // release physical frame
     }
-
-    
   }
   set_cr3(get_DIR(p));                      // flush TLB for current PT
 

@@ -22,9 +22,12 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
     return list_entry(l, struct task_struct, list);
 }
 
+extern void writeMSR(unsigned int msr, unsigned int value);
+extern int sys_write_console(char *buffer, int size);
+
 struct list_head freequeue; //declarem la llista de processos lliures
 struct list_head readyqueue; //declarem la llista de processos a punt per ser executats
-struct list_head blocked;
+extern struct list_head blocked;
 
 struct task_struct *idle_task;
 struct task_struct *init_task;
@@ -167,7 +170,7 @@ void set_quantum (struct task_struct *t, int new_quantum) {
 
 int needs_sched_rr()
 {
-    struct task_struct c = current();
+    struct task_struct *c = current();
 
     // If current exhausted its slice -> schedule
     if (c->remaining_ticks <= 0) return 1;
@@ -184,7 +187,7 @@ void update_sched_data_rr()
     if (c->remaining_ticks > 0) c->remaining_ticks--;
 }
 
-void update_process_state_rr(struct task_struct t, struct list_headdst_queue) {
+void update_process_state_rr(struct task_struct *t, struct list_head *dst_queue) {
     // 1) If the task is currently in some queue, unlink it first
     if (t->state != ST_RUN) list_del(&t->list);
 
@@ -224,8 +227,8 @@ void sched_next_rr(void)
     }
 
     // Prepare next to run
-    next_t->state = ST_RUN;
-    next_t->remaining_ticks = next->quantum;
+    next->state = ST_RUN;
+    next->remaining_ticks = next->quantum;
 
 	dbg_banner_task_switch((union task_union*)next);
     inner_task_switch((union task_union*)next);
