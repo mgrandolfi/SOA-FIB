@@ -9,10 +9,32 @@
 
 #include <zeos_interrupt.h>
 
+#include <sched.h>
+#include <devices.h>
+
 Gate idt[IDT_ENTRIES];
 Register    idtR;
 
 unsigned int zeos_ticks = 0;
+
+extern union task_union task[];
+extern struct task_struct *idle_task;
+extern void task_switch(union task_union *new);
+extern struct task_struct *init_task;
+
+#define SC_T 0x14
+#define SC_I 0x17
+#define SC_P 0x19
+#define SC_RELEASE 0x80
+
+static int uitoa_irq(unsigned n, char *b)
+{
+    if (!n) { b[0]='0'; b[1]=0; return 1; }
+    char t[12]; int i=0;
+    while (n) { t[i++]='0'+(n%10); n/=10; }
+    for (int j=0; j<i; ++j) { b[j]=t[i-1-j]; }
+    b[i]=0; return i;
+}
 
 char char_map[] =
 {
@@ -83,19 +105,38 @@ void syscall_handler_sysenter();
 void writeMSR(unsigned long msr, unsigned long value);
 
 void keyboard_routine() {
-  unsigned char b;
-  b = inb(0x60);
+  unsigned char sc;
+  sc = inb(0x60);
 
-  if (b & 0x80) { // b & 1000 0000 = break
+  if (sc & 0x80) { // b & 1000 0000 = break
     return;
   }
   //CTRL, ALT, ESPAI, ENTER... NO FORMAN PARTE DE ASCII
-  unsigned char pos_tecla = b & 0x7F; //0111 1111 = scan code
+  unsigned char pos_tecla = sc & 0x7F; //0111 1111 = scan code
   char tecla = char_map[pos_tecla];
   if (tecla) { //si té valor, si no té és perquè no està a l'ASCII
     printc_xy(0, 0, tecla);
   }
   else printc_xy(0, 0, 'C');
+
+  if (sc & SC_RELEASE) return;
+
+  if (sc == SC_T) {
+      dbg_toggle_switch();
+      sys_write_console(dbg_switch_enabled() ? "[DBG] switch=ON\n" : "[DBG] switch=OFF\n",
+                    dbg_switch_enabled() ? 16 : 17);
+  }
+  else if (sc == SC_I) {
+      // init <-> idle
+      if (current()->PID == 1) task_switch((union task_union*)idle_task);
+      else if (current()->PID == 0) task_switch((union task_union*)init_task);
+  }
+  else if (sc == SC_P) {
+      // imprimir PID actual
+      char b[12]; int l = uitoa_irq((unsigned)current()->PID, b);
+      sys_write_console("[DBG] pid=", 10); sys_write_console(b, l); sys_write_console("\n", 1);
+  }
+
 }
 
 void clock_routine() {

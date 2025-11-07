@@ -28,6 +28,7 @@ struct list_head readyqueue; //declarem la llista de processos a punt per ser ex
 extern struct list_head blocked;
 
 struct task_struct *idle_task;
+struct task_struct *init_task;
 
 /* get_DIR - Returns the Page Directory address for task 't' */
 page_table_entry * get_DIR (struct task_struct *t) 
@@ -106,14 +107,18 @@ void init_task1(void)
 	writeMSR(0x175, tss.esp0); // establim la pila del fast-syscall
 
 	set_cr3(init_task_struct->dir_pages_baseAddr); // convertim l'espai d'adreces al current
+
+	init_task = init_task_struct;
 }
 
 void inner_task_switch(union task_union*new)
 {
 	//fem push ebp al .S
+	if (new == (union task_union*)current()) return;
 	tss.esp0 = KERNEL_ESP(new);
 	writeMSR(0x175, tss.esp0);
 	set_cr3(get_DIR(&new->task)); // canviem l'espai d'adreces
+	dbg_inner_switched(new);
 	switch_context(&current()->kernel_esp, new->task.kernel_esp);
 }
 
@@ -143,3 +148,37 @@ struct task_struct* current()
   return (struct task_struct*)(ret_value&0xfffff000);
 }
 
+static int dbg_sw = 0;
+void dbg_toggle_switch(void) { dbg_sw ^= 1; }
+int  dbg_switch_enabled(void) { return dbg_sw; }
+
+static int uitoa_k(unsigned n, char *b)
+{
+    if (!n) { b[0]='0'; b[1]=0; return 1; }
+    char t[12]; int i=0;
+    while (n) { t[i++]='0'+(n%10); n/=10; }
+    for (int j=0; j<i; ++j) b[j]=t[i-1-j];
+    b[i]=0; return i;
+}
+
+void dbg_banner_task_switch(union task_union *new)
+{
+    if (!dbg_sw) return;
+    char a[12], c[12];
+    int la=uitoa_k((unsigned)current()->PID, a);
+    int lc=uitoa_k((unsigned)new->task.PID, c);
+    sys_write_console("[SW] task_switch: from ", 23);
+    sys_write_console(a, la);
+    sys_write_console(" to ", 4);
+    sys_write_console(c, lc);
+    sys_write_console("\n", 1);
+}
+
+void dbg_inner_switched(union task_union *new)
+{
+    if (!dbg_sw) return;
+    char c[12]; int lc=uitoa_k((unsigned)new->task.PID, c);
+    sys_write_console("[SW] inner: TSS/CR3 -> ", 23);
+    sys_write_console(c, lc);
+    sys_write_console("\n", 1);
+}

@@ -31,6 +31,8 @@ after_sysenter_gettime:
     popl %ebp
     ret
 
+#####################################################################
+
 ENTRY(write)
     pushl %ebp
     movl %esp, %ebp
@@ -72,6 +74,41 @@ write_return:
     movl %ebp, %esp
     popl %ebp
     ret
+
+#####################################################################
+
+ENTRY(getpid)
+    pushl %ebp
+    movl  %esp, %ebp
+
+    pushl %ebx
+    pushl %esi
+    pushl %edi
+
+    pushl %ecx      // marc de retorn per a sysenter/trap (mateix patró que la resta)
+    pushl %edx
+    pushl $after_sysenter_getpid
+    pushl %ebp
+    movl  %esp, %ebp
+
+    movl  $20, %eax
+    sysenter
+
+after_sysenter_getpid:
+    popl %ebp       // desfem frame
+    addl $4, %esp
+    popl %edx
+    popl %ecx
+
+    popl %edi       // restaurem valors
+    popl %esi
+    popl %ebx
+
+    movl %ebp, %esp // no fem error management a getpid
+    popl %ebp
+    ret
+
+#####################################################################
 
 ENTRY(fork)
     pushl %ebp

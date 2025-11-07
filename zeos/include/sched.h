@@ -28,6 +28,7 @@ union task_union {
 
 extern union task_union task[NR_TASKS]; /* Vector de tasques */
 
+extern struct task_struct *init_task;
 
 #define KERNEL_ESP(t)       	(DWord) &(t)->stack[KERNEL_STACK_SIZE]
 
@@ -63,5 +64,11 @@ void update_sched_data_rr();
 void inner_task_switch(union task_union *new);
 
 void switch_context(unsigned long *old_ebp_slot, unsigned long new_esp);
+
+// prototips (no defs)
+void dbg_toggle_switch(void);
+int  dbg_switch_enabled(void);
+void dbg_banner_task_switch(union task_union *new);
+void dbg_inner_switched(union task_union *new);
 
 #endif  /* __SCHED_H__ */
