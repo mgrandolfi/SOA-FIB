@@ -34,6 +34,8 @@ extern struct task_struct *init_task;
 
 #define INITIAL_ESP       	KERNEL_ESP(&task[1])
 
+#define DEFAULT_QUANTUM 100
+
 /* Inicialitza les dades del proces inicial */
 void init_task1(void);
 

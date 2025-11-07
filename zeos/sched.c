@@ -139,6 +139,16 @@ void init_sched()
 	}
 }
 
+void init_stats(struct stats *s) {
+	s->user_ticks = 0;
+	s->system_ticks = 0;
+	s->blocked_ticks = 0;
+	s->ready_ticks = 0;
+	s->elapsed_total_ticks = get_ticks();
+	s->total_trans = 0;
+	s->remaining_ticks = get_ticks();
+}
+
 int get_quantum (struct task_struct t){
     return t->quantum; 
 }
@@ -192,6 +202,29 @@ void update_process_state_rr(struct task_struct t, struct list_headdst_queue) {
     }
 }
 
+void sched_next_rr(void)
+{
+    struct task_struct next_t;
+
+    if (list_empty(&readyqueue)) {
+        // Nothing ready -> run idle
+        next_t = idle_task;
+    } else {
+        // FIFO order for RR
+        struct list_heade = list_first(&readyqueue);
+        list_del(e);
+        next_t = list_head_to_task_struct(e);
+    }
+
+    // Prepare next to run
+    next_t->state = ST_RUN;
+    next_t->remaining_ticks = (next_t->quantum > 0) ? next_t->quantum : DEFAULT_QUANTUM;
+
+    // Context switch
+    task_switch((union task_union)next_t);
+}
+
+
 struct task_struct* current()
 {
   int ret_value;
@@ -203,15 +236,6 @@ struct task_struct* current()
   return (struct task_struct*)(ret_value&0xfffff000);
 }
 
-void init_stats(struct stats *s) {
-    s->user_ticks = 0;
-    s->system_ticks = 0;
-    s->blocked_ticks = 0;
-    s->ready_ticks = 0;
-    s->elapsed_total_ticks = get_ticks();
-    s->total_trans = 0;
-    s->remaining_ticks = get_ticks();
-}
 
 //################################################################################
 // Debug functions for task switching
