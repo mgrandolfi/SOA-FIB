@@ -1,0 +1,17 @@
+1. Static Allocation: ZeOS statically pre-allocates a Page Directory and a Page Table for every possible process (up to NR_TASKS) at compile time. These are stored in the dir_pages and pagusr_table arrays, respectively.
+
+PCB Pointer: Each process' task_struct (its PCB) stores a pointer (dir_pages_baseAddr) to its assigned entry in the dir_pages array.
+
+Address Space: The logical address space for every process is divided into two main parts:
+
+Kernel Space: The first 256 pages are mapped 1-to-1 with a physical address and are shared among all processes. This area is only accessible in kernel mode.
+
+User Space: This area contains the process's code, data, and stack. The user code pages are shared among all processes, pointing to the same physical frames. The user data and stack pages are private; for each process, these logical pages are mapped to different, exclusive physical frames.
+
+****************************************************************************************************
+
+2. Yes, the mechanism is basically the same because it follows the same architecture. The provided text says that, for Windows, "The location for a set of Page Tables for a process is passed to the processor hardware during a context switch". In the x86 architecture, this "location" is the physical base address of the Page Directory, and the "processor hardware" it is passed to is the CR3 register. ZeOS does exactly this. During its context switch, it calls set_cr3(new_DIR), loading the new process's Page Directory address into the CR3 register.
+
+****************************************************************************************************
+
+3. The main difference is static vs. dynamic memory allocation. The text mentions that, for Windows, "Page Tables are built for each process address space", suggesting these structures are created dynamically when a new process is initiated, allocating the necessary kernel memory at that time. ZeOS, being a simpler OS which does not need to be as complex as say, for example, Windows, uses a static allocation strategy. It reserves a fixed-size array in its data section large enough to hold the paging structures for the maximum number of supported tasks. When a new process is created, ZeOS does not "build" a new Page Table from scratch; it simply takes an unused slot from this pre-allocated array and initializes it for the new process. Basically, Windows allocates memory "on the run", while in ZeOS we already know how the memory will be allocated since the booting process.

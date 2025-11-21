@@ -1,0 +1,355 @@
+**********1a) He añadido ambos wrappers al final de user-utils.S:
+
+ENTRY(writeTo)
+	pushl %ebp		//fake dynamic link
+	movl %esp, %ebp
+
+	pushl %ebx		//push de ebx
+
+	movl $37, %eax  //entrada 37 en la syscall table
+
+	//paso de parametros
+	movl 0x8(%ebp), %ebx  // pid
+	movl 0xC(%ebp), %ecx  // src
+	movl 0x10(%ebp), %edx // size
+
+	//cambiamos a modo sistema
+	call syscall_sysenter
+
+	//restauramos valor de ebx
+	popl %ebx
+
+	//return
+	popl %ebp
+	ret
+
+ENTRY(readFrom) //esencialmente, misma estructura que writeTo
+	pushl %ebp
+	movl %esp, %ebp
+
+	pushl %ebx
+
+	movl $38, %eax
+
+	movl 0x8(%ebp), %ebx  // pid*
+	movl 0xC(%ebp), %ecx  // dst
+
+	call syscall_sysenter
+
+	popl %ebx
+
+	popl %ebp
+	ret
+
+**********1b) He añadido a sched.h, antes del struct task_struct:
+
+struct mailbox_data {
+  int send_frame;                 //frame fisico para la pagina de envio
+  int sent_bytes_count;           //contador bytes enviados
+  struct list_head writer_list;   //lista de procesos escritores bloqueados en este
+};
+
+**********1c)
+
+-He añadido las entradas 37 y 38 de la syscall_table
+
+-He añadido el siguiente campo al task_struct:
+
+struct mailbox_data mbox;   //datos del buzon de mensajes
+
+-He añadido las cabeceras de las nuevas funciones en sys.c (las cuales luego usaremos para crear el código en alto nivel para sus llamadas a sistema), junto a una función helper para encontrar una tarea por su pid:
+
+int sys_writeTo(int pid, char *src, int size);
+int sys_readFrom(int *pid, char *dst);
+
+struct task_struct* find_task_by_pid(int pid) {
+    for (int i = 0; i < NR_TASKS; i++) {
+      if (task[i].task.PID == pid) {
+        return &task[i].task;
+      }
+    }
+  //return NULL; no hay control de errores. supongo que el pid que pasamos siempre será válido
+}
+
+-He añadido los headers a libc.h para el espacio de usuario:
+
+int writeTo(int pid, char *src, int size);
+
+int readFrom(int *pid, char *dst);
+
+**********1d) Implementado al final de sched.c:
+
+void initializeData(struct task_struct *t) {
+  if (t == NULL) return;
+
+  //reservamos frame físico para la pagina de envio
+  t->mbox.send_frame = alloc_frame();
+  
+  if (t->mbox.send_frame != -1) {
+    //mapeamos frame a la direccion logica 0x3FF000
+    //0x3FF es 0x3FF000 >> 12
+    set_ss_pag(get_PT(t), 0x3FF, t->mbox.send_frame);
+  }
+
+  //inicializamos contador de bytes
+  t->mbox.sent_bytes_count = 0;
+
+  //inicializamos la lista de escritores bloqueados
+  INIT_LIST_HEAD(&t->mbox.writer_list);
+}
+
+**********1e) Añadido en sys.c:
+
+//mapea el 'send_frame' del proceso 'p' en la 'logical_address'
+//del espacio de direcciones del proceso 'current()'
+void mapPhysicalPageFrom(struct task_struct *p, unsigned int logical_address) {
+  if (p == NULL) return;
+
+  //obtenemos la tabla de paginas del proceso actual
+  page_table_entry *current_pt = get_PT(current());
+  
+  //obtenemos el frame fisico a mapear (la send_page del escritor)
+  int physical_frame = p->mbox.send_frame;
+  
+  //calculamos la pagina logica de destino (ej: 0x3FD000 >> 12 = 0x3FD)
+  unsigned int logical_page = logical_address >> 12;
+
+  //realizamos el mapeo
+  set_ss_pag(current_pt, logical_page, physical_frame);
+}
+
+**********1f) Añadido en sys.c:
+
+//desmapea la 'logical_address' del espacio de direcciones del proceso 'p'
+void unmapPage(struct task_struct *p, unsigned int logical_address) {
+  if (p == NULL) return;
+  
+  page_table_entry *pt = get_PT(p);
+  unsigned int logical_page = logical_address >> 12;
+
+  del_ss_pag(pt, logical_page);
+}
+
+**********1g) Añadimos en sys.c:
+
+
+extern struct list_head blocked; //cola global de bloqueados
+
+int sys_writeTo(int pid, char *src, int size) {
+  //buscar el PCB del lector
+  struct task_struct *reader_task = find_task_by_pid(pid);
+
+  //copiar datos a nuestra pagina de envio (0x3FF000)
+  //la pagina ya esta mapeada por initializeData
+  copy_from_user(src, (void *)0x3FF000, size);
+
+  //actualizar contador de bytes
+  current()->mbox.sent_bytes_count = size;
+
+  //desbloquear al lector si estaba bloqueado
+  if (reader_task->state == ST_BLOCKED) {
+    update_process_state_rr(reader_task, &readyqueue);
+  }
+
+  //bloquearnos en la lista de escritores del lector
+  update_process_state_rr(current(), &reader_task->mbox.writer_list);
+
+  //cedemos CPU usando el scheduler
+  sched_next_rr();
+
+  //readFrom nos "despierta" aqui. devolvemos los bytes escritos
+  return size;
+}
+
+**********1h) Añadimos en sys.c:
+
+int sys_readFrom(int *pid, char *dst) {
+  
+  //si no hay escritores, bloqueamos el proceso lector
+  if (list_empty(&current()->mbox.writer_list)) {
+    //nos bloqueamos en la cola global 'blocked'
+    update_process_state_rr(current(), &blocked);
+    sched_next_rr();
+    //al ser despertados por un writeTo, continuamos aqui
+  }
+
+  //hay un escritor. cogemos el primero de la lista.
+  struct list_head *lh = list_first(&current()->mbox.writer_list);
+  list_del(lh);
+  struct task_struct *writer_task = list_head_to_task_struct(lh);
+
+  //mapeamos la página del escritor en 0x3FD000
+  mapPhysicalPageFrom(writer_task, 0x3FD000);
+
+  //copiamos los datos al destino del usuario
+  int bytes_read = writer_task->mbox.sent_bytes_count;
+  copy_to_user((void *)0x3FD000, dst, bytes_read);
+
+  //desmapeamos la página 0x3FD000
+  unmapPage(current(), 0x3FD000);
+  
+  //flush de la TLB
+  set_cr3(get_DIR(current()));
+
+  //devolvemos el PID del escritor
+  copy_to_user(&writer_task->PID, pid, sizeof(int));
+
+  //desbloqueamos al escritor (ponerlo en la readyqueue)
+  update_process_state_rr(writer_task, &readyqueue);
+
+  //devolvemos bytes leídos
+  return bytes_read;
+}
+
+**********1i)
+
+-He añadido, dentro de init_task1 de sched.c, esta línea:
+
+initializeData(c);
+
+-He añadido, dentro de sys_fork de sys.c, esta línea:
+
+initializeData(&uchild->task);
+
+-He añadido, dentro de sys_exit de sys.c, las siguientes líneas:
+
+  //liberamos frame de la send_page
+  free_frame(current()->mbox.send_frame);
+  //desmapeamos la página logica (0x3FF)
+  del_ss_pag(process_PT, 0x3FF);
+
+  //desbloqueamos a todos los escritores pendientes
+  while (!list_empty(&current()->mbox.writer_list)) {
+    struct list_head *lh = list_first(&current()->mbox.writer_list);
+    list_del(lh);
+    struct task_struct *writer_task = list_head_to_task_struct(lh);
+    update_process_state_rr(writer_task, &readyqueue);
+  }
+  
+ 
+********************************************************************************
+
+**********2a)
+
+-He cambiado la línea del Makefile de sched.o
+
+sched.o: sched.c $(INCLUDEDIR)/sched.h
+
+por esta:
+
+CFLAGS_NO_OPT = -g $(JP) -fno-omit-frame-pointer -ffreestanding -Wall -I$(INCLUDEDIR)
+
+sched.o: sched.c $(INCLUDEDIR)/sched.h
+	$(CC) $(CFLAGS_NO_OPT) -O0 -c -o $@ $<
+	
+Añado un flag nuevo e indico el -O0 para la no optimización de sched.h 
+	
+**********2b)
+
+-Creo el nuevo fichero exam.S:
+
+#include <asm.h>
+
+ENTRY(save_regs)
+	pushl %ebp
+	movl %esp, %ebp
+	
+	pushl %ebx
+	pushl %esi
+	pushl %edi
+	
+	popl %edi
+	popl %esi
+	popl %ebx
+	
+	movl %ebp, %esp
+	popl %ebp
+	ret
+
+ENTRY(restore_regs)
+	pushl %ebp
+	movl %esp, %ebp
+	
+	movl %ebp, %esp
+	popl %ebp
+	ret
+	
+-Y en el Makefile añado lo siguiente:
+
+Modifico la línea de SYSOBJ:
+
+SYSOBJ = interrupt.o entry.o sys_call_table.o io.o sched.o sys.o mm.o devices.o utils.o hardware.o list.o p_stats.o kernel-utils.o exam.o
+
+Y añado las reglas para exam.S:
+
+exam.s: exam.S $(INCLUDEDIR)/asm.h
+	$(CPP) $(ASMFLAGS) -o $@ $<
+
+exam.o: exam.s
+	$(AS) $(ASMFLAGS) -o $@ $<
+	
+**********2c)
+
+-He comentado el task_switch de kernel-utils.S
+
+-He añadido, en sched.c y después del inner_task_switch, lo siguiente:
+
+void save_regs(void);
+void restore_regs(void);
+
+void task_switch(union task_union *new) {
+  save_regs();
+  inner_task_switch(new);
+  restore_regs();
+}
+
+-Seguidamente, he hecho make sched.o en la terminal, y luego objdump -d sched.o. Ahora solo queda simplemente buscar el desensamblado de task_switch, el cual me ha dado esto:
+
+0000061d <task_switch>:
+ 61d:	55                   	push   %ebp
+ 61e:	89 e5                	mov    %esp,%ebp
+ 620:	53                   	push   %ebx
+ 621:	83 ec 04             	sub    $0x4,%esp
+ 624:	e8 fc ff ff ff       	call   625 <task_switch+0x8>
+ 629:	81 c3 02 00 00 00    	add    $0x2,%ebx
+ 62f:	e8 fc ff ff ff       	call   630 <task_switch+0x13>
+ 634:	83 ec 0c             	sub    $0xc,%esp
+ 637:	ff 75 08             	push   0x8(%ebp)
+ 63a:	e8 fc ff ff ff       	call   63b <task_switch+0x1e>
+ 63f:	83 c4 10             	add    $0x10,%esp
+ 642:	e8 fc ff ff ff       	call   643 <task_switch+0x26>
+ 647:	90                   	nop
+ 648:	8b 5d fc             	mov    -0x4(%ebp),%ebx
+ 64b:	c9                   	leave  
+ 64c:	c3                   	ret
+ 
+**********2d)
+ 
+-He modificado el fichero exam.S de la siguiente manera:
+
+ENTRY(save_regs)
+	//obtenemos la direccion de retorno,
+	//esta en (%esp) porque call la acaba de pushear
+	movl (%esp), %eax   //cargamos la dirección de retorno en EAX
+	addl $4, %esp       //saca la direccion de retorno de la pila
+
+	//guardamos los registros pedidos
+	pushl %ebx
+	pushl %esi
+	pushl %edi          //ESP queda apuntando a EDI
+
+	//volvemos a task_switch saltando, no retornando
+	jmp *%eax
+	
+**********2e)
+
+-He modificado el fichero exam.S de la siguiente manera:
+
+ENTRY(restore_regs)
+	popl %edi
+	popl %esi
+	popl %ebx
+	
+	//ahora la pila solo contiene [direccion_retorno]
+	//hacemos ret para volver a task_switch
+	ret

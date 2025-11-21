@@ -6,6 +6,9 @@
 #include <mm.h>
 #include <io.h>
 
+extern void writeMSR(unsigned int msr, unsigned int value);   // <-- AÑADIR
+extern void syscall_handler_sysenter(void);
+
 union task_union task[NR_TASKS]
   __attribute__((__section__(".data.task")));
 
@@ -115,23 +118,19 @@ void init_task1(void)
     init_task->PID = 1;
     allocate_DIR(init_task);
     
-    INIT_LIST_HEAD(&init_task->children);
     INIT_LIST_HEAD(&init_task->sibling);
     init_task->parent = idle_task;
     init_task->pending_unblocks = 0;
+    set_quantum(init_task, DEFAULT_QUANTUM);
+    init_task->remaining_ticks = DEFAULT_QUANTUM;
+    update_process_state_rr(init_task, NULL);
+    set_user_pages(init_task);
+    union task_union *init_task_union = (union task_union*)init_task;
+    tss.esp0 = KERNEL_ESP(init_task_union);
 
-	set_quantum(init_task, DEFAULT_QUANTUM);
-  	init_task->remaining_ticks = DEFAULT_QUANTUM;
-  	update_process_state_rr(init_task, &readyqueue);
+    writeMSR(0x175, tss.esp0);
 
-	set_user_pages(init_task); // inicialitzem les pàgines d'usuari
-
-	union task_union *init_task_union = (union task_union*)init_task;
-	tss.esp0 = KERNEL_ESP(init_task_union); // actualitzem la pila d'entrada del kernel per a transicions de privilegis
-
-	writeMSR(0x175, tss.esp0); // establim la pila del fast-syscall
-
-	set_cr3(init_task->dir_pages_baseAddr); // convertim l'espai d'adreces al current
+    set_cr3(init_task->dir_pages_baseAddr);
 }
 
 void inner_task_switch(union task_union*new)
