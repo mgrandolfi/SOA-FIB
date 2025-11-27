@@ -55,6 +55,87 @@ int ret_from_fork()
 {
   return 0;
 }
+ //coment everyting out           
+int sys_ThreadCreate(void (*function)(void* arg), void *parameter)
+{
+  //s hauria de comprovar errors en els parametres de entrada 
+
+
+  /* Any free task_struct? */
+  if (list_empty(&freequeue)) return -ENOMEM;
+
+  struct list_head *lhcurrent = list_first(&freequeue);
+  list_del(lhcurrent);
+  
+  //newthread = nt
+  struct task_struct *new_t = list_head_to_task_struct(lhcurrent);
+  union task_union *uthread = (union task_union*)new_t;
+  
+  /* Copy the parent's task struct to child's */
+  copy_data(current(), uthread, sizeof(union task_union));
+  
+  // 3. COMPARTIR l'espai d'adreces (Clau per als threads)new_t->dir_pages_baseAddr = current()->dir_pages_baseAddr;
+ // 4. Calcular la posició de la pila d'usuari
+    // Utilitzem l'index dins l'array 'task' per garantir que no es solapin.
+    int task_idx = (int)(new_t - &task[0]); 
+    
+    // Formula: Base - (Index * (Max_Size + Gap))
+    unsigned long stack_top = THREAD_STACK_BASE - (task_idx * (THREAD_STACK_MAX + THREAD_STACK_GAP));
+    
+    // 5. Assignar UNA pàgina física inicial per a la pila
+    // Només assignem la pàgina més alta (stack_top). El creixement es farà per Page Fault.
+    int page_logical = (stack_top - PAGE_SIZE) >> 12;
+    page_table_entry *pt = get_PT(new_t);
+
+    // Mirem si ja tenim un frame assignat (per si es reutilitza la task_struct sense netejar)
+    if (get_frame(pt, page_logical) == 0) {
+        int new_frame = alloc_frame();
+        if (new_frame == -1) {
+            list_add_tail(lh, &freequeue);
+            return -ENOMEM;
+        }
+        set_ss_pag(pt, page_logical, new_frame);
+    }
+
+    // 6. Preparar la pila d'usuari (Simular el 'push' dels paràmetres)
+    // Com que compartim espai d'adreces, podem escriure directament a l'adreça lògica
+    // PERÒ, hem d'anar amb compte amb la TLB.
+    
+    // Mapegem temporalment a una pàgina segura per escriure sense Page Faults estranys
+    // o escrivim directament si estem segurs que la pàgina és vàlida.
+    // Farem el mètode segur de mapatge temporal:
+    
+    int temp_page = (THREAD_STACK_BASE >> 12) + 1; // Una pàgina lliure temporal
+    set_ss_pag(pt, temp_page, get_frame(pt, page_logical));
+    
+    // Necessitem refrescar la TLB per veure aquest mapatge temporal
+    set_cr3(get_DIR(current()));
+
+
+    //caldria construir la pila d'usuari amb els paràmetres
+    user_stack--;
+    *(unsigned long*)user_stack = (unsigned long)parameter; // paràmetre
+    user_stack--;
+    *(unsigned long*)user_stack = 0; // Retorn fictici
+
+
+    // calcular el nou valor de ESP
+    new_t->register_esp = (unsigned long)user_stack;
+
+    // Desfem el mapatge temporal
+    del_ss_pag(pt, temp_page);
+    set_cr3(get_DIR(current())); // Flush TLB
+
+    new_t->PID = ++global_PID;
+    new_t->state = ST_READY;
+
+    // Preparem la pila de kernel per al 'iret' (Hardware Context)
+    // Posició: Base de la pila de kernel + Tamany de la pila de kernel - Context Hardware
+
+}
+
+
+
 
 int sys_fork(void)
 {
