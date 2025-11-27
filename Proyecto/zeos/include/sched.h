@@ -23,6 +23,11 @@ struct task_struct {
   int register_esp;		/* position in the stack */
   enum state_t state;		/* State of the process */
   int total_quantum;		/* Total quantum of the process */
+
+  //afegit per assignar la pila d'usuari
+  unsigned long user_stack_base; /* Adreça base (top) de la pila d'usuari */
+
+
   struct stats p_stats;		/* Process stats */
 };
 

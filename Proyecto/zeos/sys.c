@@ -58,80 +58,90 @@ int ret_from_fork()
  //coment everyting out           
 int sys_ThreadCreate(void (*function)(void* arg), void *parameter)
 {
-  //s hauria de comprovar errors en els parametres de entrada 
+  /* 0. Comprovació d'errors bàsica */
+  if (function == NULL) return -EINVAL; 
+  if (!access_ok(VERIFY_READ, function, 1)) return -EFAULT;
 
-
-  /* Any free task_struct? */
+  /* 1. Busquem una task_struct lliure */
   if (list_empty(&freequeue)) return -ENOMEM;
 
   struct list_head *lhcurrent = list_first(&freequeue);
   list_del(lhcurrent);
   
-  //newthread = nt
   struct task_struct *new_t = list_head_to_task_struct(lhcurrent);
   union task_union *uthread = (union task_union*)new_t;
   
-  /* Copy the parent's task struct to child's */
+  /* 2. Copiem la task_struct del pare al fill */
   copy_data(current(), uthread, sizeof(union task_union));
   
-  // 3. COMPARTIR l'espai d'adreces (Clau per als threads)new_t->dir_pages_baseAddr = current()->dir_pages_baseAddr;
- // 4. Calcular la posició de la pila d'usuari
-    // Utilitzem l'index dins l'array 'task' per garantir que no es solapin.
-    int task_idx = (int)(new_t - &task[0]); 
+  /* 3. COMPARTIR l'espai d'adreces (CRÍTIC per threads) */
+  /* Això estava comentat al teu codi, s'ha d'executar! */
+  new_t->dir_pages_baseAddr = current()->dir_pages_baseAddr;
+
+  /* 4. Calcular la posició de la pila d'usuari */
+  int task_idx = (int)(new_t - &task[0]); 
+  unsigned long stack_top = THREAD_STACK_BASE - (task_idx * (THREAD_STACK_MAX + THREAD_STACK_GAP));
     
-    // Formula: Base - (Index * (Max_Size + Gap))
-    unsigned long stack_top = THREAD_STACK_BASE - (task_idx * (THREAD_STACK_MAX + THREAD_STACK_GAP));
-    
-    // 5. Assignar UNA pàgina física inicial per a la pila
-    // Només assignem la pàgina més alta (stack_top). El creixement es farà per Page Fault.
-    int page_logical = (stack_top - PAGE_SIZE) >> 12;
-    page_table_entry *pt = get_PT(new_t);
+  /* 5. Assignar UNA pàgina física inicial per a la pila */
+  /* Només assignem la part més alta. El creixement es farà per Page Fault (Fita següent) */
+  int page_logical = (stack_top - PAGE_SIZE) >> 12;
+  page_table_entry *pt = get_PT(new_t);
 
-    // Mirem si ja tenim un frame assignat (per si es reutilitza la task_struct sense netejar)
-    if (get_frame(pt, page_logical) == 0) {
-        int new_frame = alloc_frame();
-        if (new_frame == -1) {
-            list_add_tail(lh, &freequeue);
-            return -ENOMEM;
-        }
-        set_ss_pag(pt, page_logical, new_frame);
-    }
+  /* Si la pàgina lògica no té frame, n'assignem un de nou. 
+     Si en té un de vell (reutilització de task_struct), el reutilitzem (o podries alliberar-lo i demanar-ne un de nou) */
+  if (get_frame(pt, page_logical) == 0) {
+      int new_frame = alloc_frame();
+      if (new_frame == -1) {
+          list_add_tail(lhcurrent, &freequeue); /* Retornem la tasca a la cua si falla */
+          return -ENOMEM;
+      }
+      set_ss_pag(pt, page_logical, new_frame);
+  }
 
-    // 6. Preparar la pila d'usuari (Simular el 'push' dels paràmetres)
-    // Com que compartim espai d'adreces, podem escriure directament a l'adreça lògica
-    // PERÒ, hem d'anar amb compte amb la TLB.
-    
-    // Mapegem temporalment a una pàgina segura per escriure sense Page Faults estranys
-    // o escrivim directament si estem segurs que la pàgina és vàlida.
-    // Farem el mètode segur de mapatge temporal:
-    
-    int temp_page = (THREAD_STACK_BASE >> 12) + 1; // Una pàgina lliure temporal
-    set_ss_pag(pt, temp_page, get_frame(pt, page_logical));
-    
-    // Necessitem refrescar la TLB per veure aquest mapatge temporal
-    set_cr3(get_DIR(current()));
+  /* 6. Preparar la pila d'usuari (User Stack) */
+  /* Mapegem temporalment per evitar Page Faults en escriure al nou stack */
+  int temp_page = (THREAD_STACK_BASE >> 12) + 1; 
+  set_ss_pag(pt, temp_page, get_frame(pt, page_logical));
+  
+  set_cr3(get_DIR(current())); /* Flush TLB necessari per veure el mapatge temporal */
 
+  /* CORRECCIÓ: Definir user_stack apuntant al final de la pàgina temporal */
+  unsigned long *user_stack = (unsigned long *)((temp_page << 12) + PAGE_SIZE);
 
-    //caldria construir la pila d'usuari amb els paràmetres
-    user_stack--;
-    *(unsigned long*)user_stack = (unsigned long)parameter; // paràmetre
-    user_stack--;
-    *(unsigned long*)user_stack = 0; // Retorn fictici
+  /* Construïm la pila d'usuari.  */
+  
+  user_stack--;
+  *user_stack = (unsigned long)parameter; 
+  user_stack--;
+  *user_stack = (unsigned long)function;  
+  user_stack--;
+  *user_stack = 0; /* Retorn fictici */
 
+  /* Calculem l'adreça REAL de l'ESP de l'usuari (no la temporal) */
+  /* Hem restat 3 posicions (3 * 4 bytes = 12 bytes) des del top real */
+  unsigned long real_user_esp = stack_top - (3 * sizeof(unsigned long));
 
-    // calcular el nou valor de ESP
-    new_t->register_esp = (unsigned long)user_stack;
+  /* Desfem el mapatge temporal */
+  del_ss_pag(pt, temp_page);
+  set_cr3(get_DIR(current())); /* Flush TLB */
 
-    // Desfem el mapatge temporal
-    del_ss_pag(pt, temp_page);
-    set_cr3(get_DIR(current())); // Flush TLB
+  /* 7. Preparar el context del procés (KERNEL STACK) */
+  new_t->PID = ++global_PID;
+  new_t->state = ST_READY;
 
-    new_t->PID = ++global_PID;
-    new_t->state = ST_READY;
+  /* Preparem la pila de KERNEL per simular un 'iret' i el context switch.
+     Fem servir la pila de sistema pròpia del nou thread. */
+  unsigned long *kernel_stack = (unsigned long *)&(uthread->stack[KERNEL_STACK_SIZE]);
 
-    // Preparem la pila de kernel per al 'iret' (Hardware Context)
-    // Posició: Base de la pila de kernel + Tamany de la pila de kernel - Context Hardware
+  /* --- Context Hardware (Simulació de la interrupció) --- */
+  kernel_stack -= 1; *kernel_stack = __USER_DS;           /* SS */
+  kernel_stack -= 1; *kernel_stack = real_user_esp;       /* ESP (El que hem calculat abans) */
+  kernel_stack -= 1; *kernel_stack = 0x200;               /* EFLAGS (IF=1, interrupcions activades) */
+  kernel_stack -= 1; *kernel_stack = __USER_CS;           /* CS */
+  kernel_stack -= 1; *kernel_stack = (unsigned long)thread_wrapper; /* EIP -> Apunta al Wrapper! */
 
+ 
+  return new_t->PID;
 }
 
 
