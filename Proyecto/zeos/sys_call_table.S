@@ -24,8 +24,8 @@ ENTRY (sys_call_table)
 	.long sys_ni_syscall	//19
 	.long sys_getpid	//20	
 	.long sys_ni_syscall	//21
-	.long sys_ni_syscall	//22
-	.long sys_ni_syscall	//23
+	.long sys_ThreadCreate  //22 (NOU)
+	.long sys_ThreadExit    //23 (NOU)
 	.long sys_ni_syscall	//24
 	.long sys_ni_syscall	//25
 	.long sys_ni_syscall	//26

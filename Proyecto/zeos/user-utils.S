@@ -67,6 +67,54 @@ ENTRY(fork)
 	popl %ebp
 	ret
 
+
+ENTRY(ThreadCreate)
+	pushl %ebp
+    movl %esp, %ebp
+
+	movl 12(%ebp), %eax     ; Carreguem el Paràmetre
+    pushl %eax              ; El passem a la pila
+    movl 8(%ebp), %ecx      ; Carreguem l'adreça de la Funció
+    call *%ecx              ; Executem: function(parameter)
+
+	addl $4, %esp           ; Netegem el paràmetre de la pilacall ThreadExit
+
+    popl %ebp
+    ret
+
+
+ENTRY(ThreadCreate)
+    pushl %ebp
+    movl %esp, %ebp
+	
+    pushl %ebx
+    movl $22, %eax          ; num sys a la syscall table 
+
+    movl 8(%ebp), %ebx      ; Arg 1: function
+    movl 12(%ebp), %ecx     ; Arg 2: parameter
+
+    sysenter
+
+    popl %ebx
+    popl %ebp
+    ret
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 /* void exit() */
 ENTRY(exit)
 	pushl %ebp
