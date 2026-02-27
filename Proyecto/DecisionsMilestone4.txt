@@ -1,0 +1,124 @@
+=============================================================================
+  MILESTONE 4: TIME SUPPORT - DECISIONS DE DISSENY
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+=============================================================================
+1. VISIÓ GENERAL
+=============================================================================
+
+Aquest fitxer descriu les decisions de disseny preses per implementar
+el suport temporal amb la syscall WaitForTick().
+
+Objectius principals:
+- Permetre que un thread es bloquegi fins a la propera interrupció de rellotge.
+- Suportar múltiples threads bloquejats simultàniament.
+- Evitar busy-waiting per millorar l'eficiència del sistema.
+
+=============================================================================
+2. MECANISME DE BLOQUEIG
+=============================================================================
+
+2.1 Cua de threads bloquejats (blocked_tick_queue)
+--------------------------------------------------
+DECISIÓ: Utilitzar una llista enllaçada (struct list_head) separada per als
+threads que esperen un tick de rellotge.
+
+RAONAMENT:
+- Permet gestionar múltiples threads bloquejats de forma eficient.
+- El despertar és O(n) on n és el nombre de threads bloquejats (cal despertar-los tots).
+- Separar aquesta cua de la cua general de bloquejats simplifica la gestió.
+
+2.2 Bloqueig del thread
+-----------------------
+DECISIÓ: Utilitzar update_process_state_rr per moure el thread a blocked_tick_queue
+i després cridar sched_next_rr per cedir la CPU.
+
+RAONAMENT:
+- Reutilitzem la infraestructura de planificació existent (Round-Robin).
+- update_process_state_rr ja gestiona correctament el canvi d'estat a ST_BLOCKED.
+- Coherent amb altres mecanismes de bloqueig del sistema.
+
+=============================================================================
+3. DESPERTAR ELS THREADS
+=============================================================================
+
+3.1 Despertar a clock_routine
+-----------------------------
+DECISIÓ: Despertar TOTS els threads bloquejats a cada interrupció de rellotge,
+i executar IMMEDIATAMENT el primer thread despertat (li donem prioritat).
+
+RAONAMENT:
+- Segons l'enunciat: "block the current thread until a clock interruption rises".
+- Això significa que qualsevol thread esperant es despertarà al proper tick.
+- El bucle while buida completament blocked_tick_queue a cada tick.
+- El PRIMER thread despertat té prioritat i s'executa immediatament:
+  - Es posa el current a readyqueue.
+  - Es mou el primer thread al principi de readyqueue.
+  - Es crida sched_next_rr() per fer el canvi de context immediat.
+- La resta de threads es mouen a readyqueue i s'executaran segons Round-Robin.
+
+3.2 Posició del codi de despertar
+---------------------------------
+DECISIÓ: Executar el despertar ABANS de cridar schedule() a clock_routine.
+
+RAONAMENT:
+- Els threads recentment despertats han d'estar a readyqueue quan schedule()
+  prengui decisions de planificació.
+- Evita condicions de carrera on un thread podria perdre el seu tick.
+
+=============================================================================
+4. IMPLEMENTACIÓ A L'ESPAI D'USUARI
+=============================================================================
+
+4.1 Wrapper senzill
+-------------------
+DECISIÓ: El wrapper WaitForTick a user-utils.S és minimal, només prepara
+%eax amb el número de syscall i crida sysenter.
+
+RAONAMENT:
+- WaitForTick no té paràmetres ni retorna errors significatius.
+- No cal gestionar errno ja que la syscall sempre retorna 0.
+- Simplicitat i eficiència.
+
+=============================================================================
+5. TEST DE VALIDACIÓ
+=============================================================================
+
+5.1 Test de múltiples threads (test_waitfortick_multithreaded)
+--------------------------------------------------------------
+DECISIÓ: Crear un test específic que demostri el requisit "More than one
+thread can be blocked simultaneously".
+
+RAONAMENT:
+- L'enunciat ho requereix explícitament.
+- Creem dos threads que fan WaitForTick en paral·lel.
+- Verifiquem que ambdós completen les seves 5 iteracions.
+- Demostra que el mecanisme de despertar funciona per a múltiples threads.
+
+5.2 Test visual (test_tick_screen)
+----------------------------------
+DECISIÓ: Crear un test visual que demostri la sincronització temporal precisa
+mitjançant canvis de color de fons sincronitzats amb el rellotge.
+
+RAONAMENT:
+- Permet verificar visualment que el temps d'espera és correcte (aprox 1 segon).
+- Demostra l'ús pràctic de WaitForTick per a animacions o temporització.
+- El test finalitza automàticament després de 20 cicles per no bloquejar l'execució.
+- Mostra un missatge "TEST FINALITZA SOL" per informar l'usuari.
+- És visualment evident si el timing funciona correctament.
+- Demostra que múltiples crides a WaitForTick funcionen consecutivament.
+
+5.3 Combinació de WaitForTick amb yield
+---------------------------------------
+DECISIÓ: Afegir un yield() després de cada WaitForTick al test visual per
+permetre la detecció del teclat.
+
+RAONAMENT:
+- El callback de teclat només pot executar-se quan el thread està corrent.
+- Mentre el thread està bloquejat a WaitForTick, no pot rebre el callback.
+- El yield() dona una oportunitat al sistema per processar el callback.
+- Afegit un timeout de seguretat (màxim 20 cicles) per evitar bucle infinit
+  en cas que el teclat no funcioni correctament.

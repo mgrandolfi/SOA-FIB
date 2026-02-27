@@ -1,0 +1,67 @@
+=============================================================================
+  MILESTONE 3: SCREEN TEST - DECISIONS DE DISSENY
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+=============================================================================
+1. VISIÓ GENERAL
+=============================================================================
+
+Aquest fitxer descriu les decisions de disseny preses per implementar
+el test visual de pantalla (Screen Test).
+
+Objectius principals:
+- Permetre una actualització ràpida i completa de la pantalla per a tests visuals.
+- Reutilitzar la interfície de crides al sistema existent (write).
+- Mantenir la simplicitat en el kernel.
+
+=============================================================================
+2. INTERFÍCIE D'ESCRIPTURA (FILE DESCRIPTOR 10)
+=============================================================================
+
+2.1 Reutilització de sys_write
+------------------------------
+DECISIÓ: Utilitzar la syscall 'write' amb un File Descriptor especial (10) en lloc
+de crear una nova syscall. (enunciat)
+
+RAONAMENT:
+- Simplifica el sistema operatiu.
+- 'write' ja està dissenyada per transferir buffers de dades.
+- El FD 10 actua com un dispositiu virtual que representa la memòria de vídeo en mode text.
+
+2.2 Accés directe a memòria de vídeo
+------------------------------------
+DECISIÓ: Copiar directament del buffer d'usuari a l'adreça física 0xb8000. (enunciat)
+
+RAONAMENT:
+- Eficiència: Permet actualitzar tota la pantalla (80x25 caràcters + atributs) en una sola operació.
+- El kernel valida que l'adreça de destí és correcta i limita la mida per evitar desbordaments.
+
+=============================================================================
+3. IMPLEMENTACIÓ A L'ESPAI D'USUARI
+=============================================================================
+
+3.1 Doble Buffer (Screen Buffer)
+--------------------------------
+DECISIÓ: Compondre la imatge completa en un buffer local (screen_buffer) abans
+d'enviar-la a pantalla.
+
+RAONAMENT:
+- Evita el parpelleig (flickering) que es produiria si s'escrivís caràcter a caràcter.
+- Permet preparar patrons (fons, colors) fàcilment manipulant l'array en memòria.
+
+=============================================================================
+4. VALIDACIÓ DE RENDIMENT
+=============================================================================
+
+4.1 Benchmark de FPS (test_fps)
+-------------------------------
+DECISIÓ: Implementar una funció específica de test ('test_fps') utilitzant la
+crida 'gettime' (exposada a libc.h) per mesurar el temps.
+
+RAONAMENT:
+- És necessari verificar empíricament el requisit de suportar almenys 30 FPS.
+- 'gettime' permet comptar els ticks del sistema per calcular la taxa de refresc real.
+- El test valida que l'escriptura directa a memòria és prou eficient per a videojocs en temps real.

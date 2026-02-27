@@ -1,0 +1,35 @@
+=============================================================================
+  MILESTONE 5: LLISTA DE CANVIS - VIDEOJOC DIGGER
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+=============================================================================
+FITXERS MODIFICATS
+=============================================================================
+
+1. user.c
+   -------
+   - Afegit codi complet del videojoc estil Dig Dug (~1150 línies).
+   - Utilitza totes les funcionalitats dels Milestones anteriors:
+     * M1: ThreadCreate, ThreadExit
+     * M2: KeyboardEvent (callback de teclat)
+     * M3: write(10, buffer, size) per escriure al framebuffer
+     * M4: WaitForTick per sincronització temporal
+
+=============================================================================
+FUNCIONALITATS IMPLEMENTADES
+=============================================================================
+
+- Pantalla de títol amb animacions
+- 3 threads: main (input), lògica (actualització), render (dibuix)
+- Jugador que excava túnels pel mapa
+- Enemics amb IA que persegueixen i excaven cap al jugador
+- Sistema de vides i puntuació
+- 3 nivells amb dificultat progressiva
+- Menú de pausa (ESC)
+- Pantalla de Game Over i Victòria
+- HUD amb score, vides, gemmes, nivell i FPS
+
+=============================================================================

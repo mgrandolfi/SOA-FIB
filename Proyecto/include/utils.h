@@ -12,6 +12,7 @@ int access_ok(int type, const void *addr, unsigned long size);
 #define min(a,b)	(a<b?a:b)
 
 unsigned long get_ticks(void);
+unsigned int get_cr2(void);
 
 void memset(void *s, unsigned char c, int size);
 

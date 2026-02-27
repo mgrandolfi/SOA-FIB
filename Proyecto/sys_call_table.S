@@ -22,10 +22,10 @@ ENTRY (sys_call_table)
 	.long sys_ni_syscall	//17
 	.long sys_ni_syscall	//18
 	.long sys_ni_syscall	//19
-	.long sys_getpid	//20	
+	.long sys_getpid		//20	
 	.long sys_ni_syscall	//21
-	.long sys_ThreadCreate  //22 (NOU)
-	.long sys_ThreadExit    //23 (NOU)
+	.long sys_ni_syscall	//22
+	.long sys_ni_syscall	//23
 	.long sys_ni_syscall	//24
 	.long sys_ni_syscall	//25
 	.long sys_ni_syscall	//26
@@ -38,6 +38,11 @@ ENTRY (sys_call_table)
 	.long sys_ni_syscall	//33
 	.long sys_ni_syscall	//34
 	.long sys_get_stats		//35
-
+	.long sys_thread_create	//36
+	.long sys_thread_exit	//37
+	.long sys_get_stack_id	//38
+	.long sys_keyboard_event //39
+	.long sys_WaitForTick	//40
+	
 .globl MAX_SYSCALL
 MAX_SYSCALL = (. - sys_call_table)/4

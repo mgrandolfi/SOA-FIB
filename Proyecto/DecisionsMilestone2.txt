@@ -1,0 +1,110 @@
+=============================================================================
+  MILESTONE 2: SUPORT DE TECLAT - DECISIONS DE DISSENY
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+=============================================================================
+1. VISIÓ GENERAL
+=============================================================================
+
+Aquest fitxer descriu les decisions de disseny preses per implementar
+el suport d'esdeveniments de teclat asíncrons a ZeOS.
+
+Objectius principals:
+- Executar codi d'usuari (callback) immediatament quan es rep una interrupció de teclat.
+- Utilitzar el context del thread actual sense corrompre la seva pila.
+- Garantir un retorn segur al punt d'interrupció.
+- Evitar problemes de reentrància en crides al sistema.
+- "El primer guanya": només un callback pot estar actiu al sistema.
+
+=============================================================================
+2. ESTRUCTURA DE DADES
+=============================================================================
+
+2.1 Extensions a task_struct (include/sched.h)
+----------------------------------------------
+Hem afegit camps per gestionar l'estat del callback:
+
+- void (*keyboard_callback)(char, int): Punter a la funció de callback d'usuari.
+- void (*keyboard_wrapper)(void): Punter al wrapper ASM que crida el callback.
+- unsigned int keyboard_aux_stack: Punter a la pila auxiliar.
+- int in_keyboard_callback: Flag per saber si estem executant el callback.
+- struct pt_regs saved_regs: Registres guardats per restaurar després del callback.
+
+2.2 Variable global (interrupt.c)
+---------------------------------
+- int keyboard_callback_active: Indica si hi ha un callback actiu al sistema.
+  Permet implementar la política "primer guanya".
+
+=============================================================================
+3. MECANISME DE CALLBACK (CONTEXT HIJACKING)
+=============================================================================
+
+3.1 Segrest del flux d'execució
+-------------------------------
+DECISIÓ: Modificar el context de retorn de la interrupció de teclat.
+RAONAMENT: Permet "injectar" l'execució del callback immediatament abans de retornar a usuari.
+
+Quan arriba una interrupció de teclat:
+  1. Si keyboard_callback_active == 1, ignorem l'event.
+  2. Si el thread actual té callback registrat i no està ja en callback:
+     a. Guardem tots els registres originals a task_struct.
+     b. Marquem in_keyboard_callback = 1 i keyboard_callback_active = 1.
+     c. Canviem EIP per apuntar al wrapper d'usuari.
+     d. Canviem ESP per apuntar a la pila auxiliar.
+     e. Passem els arguments (key, pressed) a la pila auxiliar.
+     f. Passem el callback a %eax per al wrapper.
+
+3.2 Pila Auxiliar
+-----------------
+DECISIÓ: Utilitzar una pàgina física dedicada mapejada a la pàgina lògica 700.
+RAONAMENT: Evita corrompre la pila del thread principal i simplifica la gestió de memòria.
+           La pàgina 700 està lluny de les àrees de codi/dades habituals.
+
+=============================================================================
+4. RETORN DEL CALLBACK
+=============================================================================
+
+DECISIÓ: Utilitzar una interrupció software (int 0x2b) per retornar.
+RAONAMENT: Necessitem tornar a mode kernel per restaurar els registres originals
+           guardats al task_struct.
+
+- El wrapper d'usuari (keyboard_wrapper_asm) executa 'call *%eax' i després 'int 0x2b'.
+- El handler del kernel (keyboard_exit_routine):
+  1. Comprova si in_keyboard_callback == 1 (si no, no fa res - compleix l'enunciat!).
+  2. Restaura els registres originals des de saved_regs.
+  3. Posa in_keyboard_callback = 0 i keyboard_callback_active = 0.
+  4. Retorna amb 'iret' al punt original d'execució.
+
+=============================================================================
+5. POLÍTICA DE CONCURRÈNCIA
+=============================================================================
+
+DECISIÓ: No implementar "focus stealing". El primer thread/procés que registra
+         un callback és el que rep els events fins que acabi.
+RAONAMENT: Simplifica la implementació i evita problemes de sincronització.
+
+- Si keyboard_callback_active == 1 quan arriba una interrupció de teclat, s'ignora.
+- Si es crida sys_keyboard_event mentre keyboard_callback_active == 1, retorna -EINPROGRESS.
+- Quan el callback acaba (int 0x2b), keyboard_callback_active es posa a 0.
+
+=============================================================================
+6. GESTIÓ DE SYSCALLS (EINPROGRESS)
+=============================================================================
+
+DECISIÓ: Bloquejar totes les syscalls dins del callback retornant -EINPROGRESS.
+RAONAMENT: Evita reentrància i problemes de concurrència si el callback intenta
+           bloquejar-se o modificar l'estat del sistema de forma complexa.
+
+- A entry.S, abans d'executar qualsevol syscall, es comprova is_in_keyboard_callback().
+- Si retorna 1, es retorna directament -EINPROGRESS sense executar la syscall.
+
+=============================================================================
+7. NETEJA DE RECURSOS
+=============================================================================
+
+- La pila auxiliar s'allibera explícitament a sys_exit() per evitar memory leaks.
+- A sys_fork() i sys_thread_create(), els camps de teclat s'inicialitzen a NULL/0
+  per evitar que fills/threads hereti un callback registrat.

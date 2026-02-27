@@ -1,0 +1,127 @@
+=============================================================================
+  MILESTONE 1: LLISTA DE CANVIS - SUPORT DE THREADS
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+RESUM:
+
+Aquest milestone implementa el suport per a threads en ZeOS, incloent:
+- Creació i destrucció de threads (ThreadCreate, ThreadExit)
+- Gestió dinàmica de la pila d'usuari (creixement sota demanda via Page Fault)
+- Implementació de errno thread-safe
+- Adaptació de fork() i exit() per a entorns multithread
+- Gestió eficient d'identificadors de pila (stack_id) mitjançant bitmap
+
+TOTES LES TASQUES DEL MILESTONE 1 ESTAN IMPLEMENTADES I FUNCIONALS
+
+=============================================================================
+FITXERS MODIFICATS
+=============================================================================
+
+1. include/sched.h
+   ------------------
+   Afegits camps a task_struct per suport de threads:
+   
+   - int TID;                            // Thread ID únic
+   - struct task_struct *process_leader; // Punter al líder del procés
+   - struct list_head thread_list;       // Llista de threads del procés
+   - int num_threads;                    // Comptador de threads (només líder)
+   - int stack_id;                       // ID de la pila (0-31)
+   - unsigned long threads_mask;         // Bitmap d'ocupació de piles
+   - unsigned int user_stack_base;       // Base de la pila d'usuari
+   - unsigned int user_stack_pages;      // Pàgines actuals
+   - unsigned int user_stack_max_pages;  // Límit de creixement
+
+2. include/libc.h
+   ------------------
+   - Afegits prototips: ThreadCreate, ThreadExit, get_stack_id.
+   - Redefinit errno com a macro que crida __errno_location().
+
+3. sys.c
+   ---------------------
+   - sys_thread_create: Implementació de la creació de threads.
+     * Usa share_DIR() per compartir directori i incrementar comptador de referències.
+   - sys_thread_exit: Implementació de la destrucció de threads.
+     * Crida free_DIR() per decrementar comptador de referències del directori.
+   - sys_get_stack_id: Nova syscall per obtenir l'ID de pila.
+   - sys_fork: Adaptat per copiar la pila dinàmica i gestionar threads.
+     * Afegides crides a free_DIR() en tots els casos d'error.
+   - sys_exit: Modificat per matar tots els threads del procés.
+     * Crida free_DIR() per cada thread i pel líder.
+   - Afegida protecció contra overflow de PIDs.
+
+4. sched.c
+   ---------------------
+   - allocate_thread_stack: Assigna espai inicial per a la pila.
+   - free_thread_stack: Allibera memòria de la pila.
+   - is_stack_growth_fault: Detecta si un PF és per creixement de pila.
+   - grow_user_stack: Assigna noves pàgines a la pila.
+   - init_task1: Inicialitza el procés 1 amb pila dinàmica.
+
+5. entry.S
+   ---------------------
+   - page_fault_handler_custom: Handler per gestionar Page Faults.
+
+6. interrupt.c
+   -----------------------
+   - page_fault_routine_custom: Lògica per fer créixer la pila o matar el procés.
+
+7. user-utils.S
+   -----------------------
+   - ThreadCreate: Wrapper per la syscall.
+   - thread_wrapper: Trampolí per executar la funció d'usuari i assegurar ThreadExit.
+   - get_stack_id: Wrapper per la syscall.
+   - Inicialització de errno a 0 en nous threads.
+
+8. sys_call_table.S
+   -----------------------
+   - Afegides entrades 36 (ThreadCreate), 37 (ThreadExit), 38 (get_stack_id).
+
+9. libc.c
+   -----------------------
+   - Implementat array errno_storage[32].
+   - __errno_location: Retorna punter a errno segons stack_id.
+
+10. utils.c
+    -----------------------
+    - access_ok: Actualitzat per verificar rangs de memòria de threads.
+      * Verifica regions CODE (només lectura), DATA i STACK.
+      * Per accessos a la zona de piles, consulta threads_mask del procés.
+      * Denega accés a zones de pila de threads no creats (retorna EFAULT).
+      * Denega accés a espai del kernel i adreces NULL.
+
+11. mm.c
+    -----------------------
+    - Afegits arrays per gestió dinàmica de directoris:
+      * dir_pages_used[NR_TASKS]: Indica quins directoris estan en ús.
+      * dir_ref_count[NR_TASKS]: Comptador de referències per directori.
+
+12. sched.c (gestió dinàmica de directoris)
+    -----------------------
+    - allocate_DIR: Assigna un directori lliure dinàmicament.
+    - share_DIR: Comparteix directori entre threads del mateix procés.
+    - free_DIR: Allibera directori quan ja no hi ha referències.
+    - Optimització TLB: Evita flush si el context switch és entre threads del mateix procés.
+
+13. sys.c (gestió d'errors i directoris)
+    -----------------------
+    - Ús de allocate_DIR/share_DIR/free_DIR en lloc d'assignació estàtica.
+
+14. user.c
+    -------------------
+    - Conté una suite de 8 tests complets, on a cada test es prova una funcionalitat
+    diferent de la nostra implementació.
+
+15. io.c
+    -----
+    - Afegides funcions auxiliars per debugging.
+   
+16. system.c
+    -----
+    - Canviat USER_ESP a return gate per usar una pila nova per al thread de init_task1.
+
+=============================================================================
+FI DEL DOCUMENT
+=============================================================================

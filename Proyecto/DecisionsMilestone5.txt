@@ -1,0 +1,33 @@
+=============================================================================
+  MILESTONE 5: VIDEOJOC - DECISIONS DE DISSENY
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+=============================================================================
+DECISIONS PRINCIPALS
+=============================================================================
+
+1. ARQUITECTURA DE 3 THREADS
+   - Main: processa input (yield + KeyboardEvent callback)
+   - Lògica: actualitza jugador/enemics (WaitForTick)
+   - Render: dibuixa pantalla (WaitForTick)
+   Raó: Separar responsabilitats, evitar bloquejos de teclat.
+
+2. CONTROL DE VELOCITAT AMB TICKS
+   - Jugador: mou cada 200 ticks
+   - Enemics: mouen cada 1152 ticks, excaven cada 1536 ticks
+   Raó: Moviment suau sense dependre de FPS.
+
+3. IA DELS ENEMICS
+   - Persegueixen jugador amb pathfinding simple (eix més allunyat)
+   - Poden excavar túnels per arribar al jugador
+   Raó: Comportament similar a Dig Dug original.
+
+4. MODE TEXT VGA 80x25
+   - Buffer de 4000 bytes (80*25*2)
+   - Cada cel·la: caràcter + atribut de color
+   Raó: Compatible amb write(10, ...) del M3.
+
+=============================================================================

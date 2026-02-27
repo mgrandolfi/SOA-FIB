@@ -1,0 +1,79 @@
+=============================================================================
+  MILESTONE 4: LLISTA DE CANVIS - TIME SUPPORT (WaitForTick)
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+RESUM:
+
+Aquest milestone implementa la syscall WaitForTick() que permet bloquejar
+un thread fins que es produeixi una interrupció de rellotge. Múltiples
+threads poden estar bloquejats simultàniament esperant el tick.
+
+=============================================================================
+FITXERS MODIFICATS
+=============================================================================
+
+1. sys.c
+   ------------------
+   - sys_WaitForTick: Nova funció que implementa la syscall.
+     - Bloqueja el thread actual movent-lo a la cua blocked_tick_queue.
+     - Crida update_process_state_rr per canviar l'estat a ST_BLOCKED.
+     - Crida sched_next_rr per cedir la CPU al següent thread/procés.
+     - Retorna 0 quan el thread és despertat.
+
+2. sched.c
+   ------------------
+   - blocked_tick_queue: Nova variable global de tipus struct list_head.
+     - Llista de threads bloquejats esperant una interrupció de rellotge.
+   - init_sched: Afegida inicialització de blocked_tick_queue amb INIT_LIST_HEAD.
+
+3. include/sched.h
+   ------------------
+   - Afegida declaració extern de blocked_tick_queue.
+     - Permet accés des d'altres mòduls (interrupt.c, sys.c).
+
+4. interrupt.c
+   ------------------
+   - clock_routine: Modificada per despertar tots els threads bloquejats.
+     - Itera sobre blocked_tick_queue mentre no estigui buida.
+     - Per cada thread bloquejat, el mou a readyqueue amb update_process_state_rr.
+     - El PRIMER thread despertat té PRIORITAT: s'executa immediatament.
+       - Es posa el current a readyqueue i el primer thread al principi.
+       - Es crida sched_next_rr() que agafa el primer de readyqueue (el thread despertat).
+       - Això garanteix execució immediata sense esperar al scheduler normal.
+     - La resta de threads es mouen a readyqueue i s'executaran normalment.
+     - Això permet que múltiples threads esperant WaitForTick es despertin
+       simultàniament a cada tick de rellotge.
+
+5. sys_call_table.S
+   ------------------
+   - Afegida entrada per sys_WaitForTick a la posició 40 de la taula de syscalls.
+
+6. user-utils.S
+   ------------------
+   - WaitForTick: Nova funció wrapper per la syscall.
+     - Prepara el número de syscall (40) a %eax.
+     - Crida syscall_sysenter per entrar al kernel.
+     - Retorna el valor de la syscall (sempre 0).
+
+7. include/libc.h
+   ------------------
+   - Afegida declaració de la funció WaitForTick().
+
+8. user.c
+   ------------------
+   - test_waitfortick_multithreaded: Nou test que demostra WaitForTick amb
+     múltiples threads bloquejats simultàniament.
+     - Crea dos threads que fan 5 WaitForTick cadascun.
+     - Verifica que ambdós threads completen correctament.
+     - Demostra que "More than one thread can be blocked simultaneously".
+   - test_tick_screen: Nova funció de test visual per demostrar WaitForTick.
+     - Mostra un efecte visual amb canvi de colors de fons.
+     - Utilitza WaitForTick() dins d'un bucle per esperar 18 ticks entre frames.
+       - 18 ticks ≈ 1 segon (amb rellotge a 18.2 Hz).
+     - Inclou timeout de seguretat (màxim 20 cicles).
+     - Demostra sincronització temporal precisa sense busy-waiting.
+   - main: Afegides crides a test_waitfortick_multithreaded() i test_tick_screen().
+

@@ -102,11 +102,24 @@ int __attribute__((__section__(".text.main")))
   printk("Entering user mode...");
 
   enable_int();
+
+  // Preparem la pila d'usuari
+  unsigned int *stack = (unsigned int *)task[1].task.user_stack_base;
+  // Inicialitzem envp, argv, argc i direccio de retorn falsa a 0 per poder accedir al usr_main sense problemes
+  stack--;
+  *stack = 0;
+  stack--;
+  *stack = 0;
+  stack--;
+  *stack = 0;
+  stack--;
+  *stack = 0;
+
   /*
    * We return from a 'theorical' call to a 'call gate' to reduce our privileges
    * and going to execute 'magically' at 'usr_main'...
    */
-  return_gate(__USER_DS, __USER_DS, USER_ESP, __USER_CS, L_USER_START);
+  return_gate(__USER_DS, __USER_DS, (unsigned int)stack, __USER_CS, L_USER_START);
 
   /* The execution never arrives to this point */
   return 0;

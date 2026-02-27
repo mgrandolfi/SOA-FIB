@@ -1,0 +1,153 @@
+=============================================================================
+  MILESTONE 1: DECISIONS DE DISSENY - SUPORT DE THREADS
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+RESUM:
+
+Aquest document detalla les decisions de disseny preses durant la implementació
+del suport de threads en ZeOS.
+
+=============================================================================
+DECISIONS PRESES
+=============================================================================
+
+1. Model de Threads (1:1)
+   ----------------------
+   - Decisió: Implementar threads a nivell de kernel (Kernel Level Threads).
+   - Motiu: Permet que el planificador gestioni cada thread individualment,
+     aprofitant millor la CPU i evitant que un thread bloquegi tot el procés.
+   - Implementació: Cada thread té el seu propi task_struct i TID, però
+     comparteixen PID i espai d'adreces (dir_pages_baseAddr) amb el líder.
+
+2. Gestió de Piles d'Usuari
+   ------------------------
+   - Decisió: Piles dinàmiques amb creixement sota demanda (Page Fault).
+   - Motiu: Estalvi de memòria. Assignar la mida màxima (ex: 44KB) per a
+     cada thread seria ineficient.
+   - Implementació:
+     - Es reserva un rang virtual (Gap) per a cada thread.
+     - Inicialment només s'assigna 1 pàgina física.
+     - Quan es produeix un Page Fault dins del Gap, el kernel assigna una
+       nova pàgina física transparentment.
+     - Si se supera el límit (THREAD_STACK_MAX_PAGES), es mata el procés.
+
+3. Identificació de Piles (stack_id)
+   ---------------------------------
+   - Decisió: Usar un bitmap (threads_mask) al líder del procés.
+   - Motiu: Evitar col·lisions d'identificadors quan es creen i destrueixen.
+   - Implementació:
+     - Cada bit del bitmap representa un slot de pila (0-31).
+     - ThreadCreate busca el primer bit lliure.
+     - ThreadExit allibera el bit corresponent.
+
+4. Gestió d'Errors (errno)
+   -----------------------
+   - Decisió: Variable errno local per thread (Thread-Local Storage simulat).
+   - Motiu: Evitar condicions de carrera en entorns multithread.
+   - Implementació:
+     - Array global int errno_storage[MAX_THREADS] a l'espai d'usuari.
+     - Syscall get_stack_id() per obtenir l'índex del thread actual.
+     - Macro errno expandeix a (*__errno_location()).
+
+5. Procés Inicial (Task 1)
+   -----------------------
+   - Decisió: Migrar el procés inicial a pila dinàmica.
+   - Motiu: Uniformitat. Si el procés inicial fa fork(), el fill ha de tenir
+     el mateix comportament que qualsevol altre procés/thread.
+   - Implementació: init_task1 configura la pila dinàmica i main usa
+     aquesta adreça per al canvi de context inicial.
+
+6. Seguretat i Robustesa
+   ---------------------
+   - Wrapper obligatori: thread_wrapper assegura ThreadExit.
+   - Validació de punters: access_ok verifica rangs de memòria i que el thread existeixi.
+   - Overflow de PIDs: sys_fork comprova MAX_INT.
+   - Neteja en sys_exit: El líder mata tots els threads secundaris.
+   - Neteja en sys_fork: En cas d'error, es desfà tota la feina (free_DIR, alliberar PCB, etc.).
+
+7. Gestió Dinàmica de Directoris
+   -----------------------------
+   - Decisió: Assignar directoris dinàmicament en lloc d'estàticament per índex de task.
+   - Motiu: Evitar que un fork() sobreescrigui el directori d'un altre procés/thread.
+   - Problema original: Si A crea thread B (comparteixen directori), A mor, i B fa fork,
+     el nou procés C agafava el PCB d'A i sobreescrivia el directori compartit.
+   - Implementació:
+     * dir_pages_used[NR_TASKS]: Bitmap de directoris en ús.
+     * dir_ref_count[NR_TASKS]: Comptador de referències per directori.
+     * allocate_DIR(): Busca un directori lliure.
+     * share_DIR(): Incrementa el comptador de referències.
+     * free_DIR(): Decrementa comptador i allibera si arriba a 0.
+
+8. Optimització de TLB en Context Switch
+   -------------------------------------
+   - Decisió: Evitar flush de TLB quan es canvia entre threads del mateix procés.
+   - Motiu: Els threads comparteixen espai d'adreces, el flush és innecessari.
+   - Implementació: A inner_task_switch, comparar dir_pages_baseAddr abans de set_cr3.
+
+=============================================================================
+DETALLS D'IMPLEMENTACIÓ
+=============================================================================
+
+9. CREIXEMENT DINÀMIC DE PILA
+   --------------------------
+   Quan es produeix un page fault (INT 14):
+   1. page_fault_handler_custom (entry.S) salva context i crida rutina C.
+   2. page_fault_routine_custom (interrupt.c) obté l'adreça de CR2.
+   3. is_stack_growth_fault (sched.c) valida si és dins del gap.
+   4. grow_user_stack (sched.c) assigna nova pàgina física.
+   5. Si falla o no és vàlid, es mata el procés.
+
+10. CREACIÓ DE THREADS (sys_thread_create)
+   --------------------------------------
+   1. Valida paràmetres i obté task_struct lliure.
+   2. Copia task_struct del pare (comparteix dir_pages).
+   3. Assigna nou TID i pila (allocate_thread_stack).
+   4. Construeix "fake interrupt frame" a la pila de kernel.
+   5. thread_start_trampoline (kernel-utils.S) fa el salt a usuari.
+
+11. SORTIDA DE THREADS (sys_thread_exit)
+   ------------------------------------
+   1. Si és l'últim thread, crida sys_exit (mata procés).
+   2. Si no, allibera pila (free_thread_stack) i bit del bitmap.
+   3. Decrementa num_threads del líder.
+   4. Crida schedule().
+
+12. MODIFICACIÓ DEL FORK
+    --------------------
+    - sys_fork només clona el thread actual.
+    - El fill neix amb un sol thread (el que ha fet fork).
+    - Inicialitza thread_list buida i num_threads = 1.
+    - Copia la pila dinàmica del thread pare al fill.
+
+13. SYSCALLS
+    --------
+    Taula de Syscalls (sys_call_table.S):
+    - 36: sys_thread_create
+    - 37: sys_thread_exit
+    - 38: sys_get_stack_id
+
+    Wrappers (user-utils.S):
+    - ThreadCreate: Crida syscall 36.
+    - ThreadExit: Crida syscall 37.
+    - get_stack_id: Crida syscall 38.
+
+14. PROVES I VALIDACIÓ
+    ------------------
+    S'han implementat 8 tests exhaustius a user.c:
+    
+    Tests funcionals:
+    1. Creació simple de thread.
+    2. Threads concurrents (scheduling).
+    3. Creixement dinàmic de pila (recursió).
+    4. Fork amb threads.
+    5. Validació access_ok.
+    6. Límits de pila (Stack Overflow -> GPF).
+    7. Exit de thread secundari.
+    8. Exit del thread leader (mata tot el procés).
+
+=============================================================================
+FI DEL DOCUMENT
+=============================================================================

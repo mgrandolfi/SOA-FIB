@@ -6,7 +6,16 @@
 
 #include <types.h>
 
-int errno;
+#define MAX_THREADS 32
+
+// Array per emmagatzemar l'errno de cada thread de forma independent
+int errno_storage[MAX_THREADS];
+
+// Retorna l'adreça de memòria de la variable errno corresponent al thread actual
+int *__errno_location(void) {
+  return &errno_storage[get_stack_id()];
+}
+
 int REGS[7]; // Space to save REGISTERS
 
 void itoa(int a, char *b)

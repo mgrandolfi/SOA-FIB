@@ -1,0 +1,71 @@
+=============================================================================
+  MILESTONE 2: LLISTA DE CANVIS - SUPORT DE TECLAT
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+RESUM:
+
+Aquest milestone implementa el suport per esdeveniments de teclat asíncrons en ZeOS, incloent:
+- Registre de funcions de callback d'usuari (KeyboardEvent)
+- Execució de callbacks mitjançant hijacking
+- Ús de pila auxiliar per a l'execució del callback
+- Protecció contra incoming syscalls (EINPROGRESS)
+- Retorn segur del callback mitjançant int 0x2b
+- Només un callback actiu al sistema a la vegada
+
+TOTES LES TASQUES DEL MILESTONE 2 ESTAN IMPLEMENTADES I FUNCIONALS
+
+=============================================================================
+FITXERS MODIFICATS
+=============================================================================
+
+1. include/sched.h
+   ------------------
+   Afegits camps a task_struct per suport de teclat:
+   
+   - void (*keyboard_callback)(char, int); // Punter a la funció d'usuari
+   - void (*keyboard_wrapper)(void);       // Punter al wrapper ASM
+   - unsigned int keyboard_aux_stack;      // Pila auxiliar (pàgina 700)
+   - int in_keyboard_callback;             // Flag d'estat (per thread)
+   - struct pt_regs saved_regs;            // Context original guardat
+
+2. include/interrupt.h
+   -----------------------
+   - Definida struct pt_regs per accés als registres en C.
+
+3. include/libc.h
+   ------------------
+   - Afegit prototip int KeyboardEvent(void (*func)(char key, int pressed));
+
+4. entry.S
+   ---------------------
+   - keyboard_handler: Passa pt_regs a keyboard_routine.
+   - keyboard_exit_handler: Nou handler per int 0x2b (retorn de callback).
+
+5. interrupt.c
+   -----------------------
+   - keyboard_callback_active: Variable global per indicar si hi ha callback actiu.
+   - keyboard_routine: Implementat el context hijacking. Si ja hi ha callback actiu,
+     ignora l'event.
+   - keyboard_exit_routine: Restaura el context original després del callback.
+     Si int 0x2b es crida fora del keyboard support, no fa res.
+   - setIdt: Registrat vector 0x2b per keyboard_exit_handler.
+
+6. sys.c
+   ---------------------
+   - sys_keyboard_event: Nova syscall per registrar callback i reservar pila auxiliar.
+     Retorna -EINPROGRESS si ja hi ha un callback actiu al sistema.
+   - is_in_keyboard_callback: Helper per comprovar estat.
+   - sys_exit: Allibera la pila auxiliar de teclat.
+   - sys_fork / sys_thread_create: Inicialització dels camps de teclat a NULL/0.
+
+7. user-utils.S
+   -----------------------
+   - KeyboardEvent: Wrapper per la syscall.
+   - keyboard_wrapper_asm: Trampolí que crida la funció C (via %eax) i fa int 0x2b al acabar.
+
+8. sys_call_table.S
+   -----------------------
+   - Afegida entrada 39 per sys_keyboard_event.

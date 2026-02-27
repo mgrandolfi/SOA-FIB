@@ -1,0 +1,41 @@
+=============================================================================
+  MILESTONE 3: LLISTA DE CANVIS - SCREEN TEST
+=============================================================================
+
+INTEGRANTS: - GAY HERNÁNDEZ, POL (G13)
+            - GRANDOLFI ALBUQUERQUE, MATEUS (G13)
+
+RESUM:
+
+Aquest milestone implementa un mecanisme per realitzar tests visuals de pantalla
+mitjançant l'escriptura directa a la memòria de vídeo (VGA), utilitzant un
+descriptor de fitxer reservat.
+
+=============================================================================
+FITXERS MODIFICATS
+=============================================================================
+
+1. sys.c
+   ------------------
+   - check_fd: Modificat per permetre l'ús del file descriptor 10 (reservat per screen test).
+   - sys_write: Afegida lògica per detectar fd=10.
+     - Si fd==10, realitza un copy_from_user directament a l'adreça de memòria de vídeo (0xb8000).
+     - Limita la mida de còpia a la mida de la pantalla (80*25*2 bytes).
+
+2. user.c
+   ------------------
+   - Afegit buffer global 'screen_buffer' (4000 bytes) per compondre la imatge.
+   - draw_string: Funció auxiliar per escriure text amb atributs de color al buffer.
+   - test_fps: Implementació d'un benchmark de rendiment.
+     - Calcula els frames per segon (FPS) reals del sistema.
+     - Verifica el requisit de mínim 30 FPS.
+   - test_screen_write: Implementació del test visual.
+     - Neteja la pantalla.
+     - Dibuixa patrons de colors i text.
+     - Utilitza write(10, ...) per actualitzar la pantalla real.
+     - Espera interacció de l'usuari (teclat) per avançar entre pantalles.
+   - main: Afegida la crida a test_screen_write() al final de l'execució.
+
+3. include/libc.h
+   ------------------
+   - Afegida la declaració de la funció 'gettime' per obtenir els ticks del sistema i mesurar el temps.

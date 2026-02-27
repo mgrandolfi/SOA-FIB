@@ -88,10 +88,33 @@ ENTRY(keyboard_handler)
       call user_to_system;
       popl %eax;
       EOI
+      pushl %esp; // Passem el punter als registres (pt_regs)
       call keyboard_routine;
+      addl $4, %esp;
       pushl %eax;
       call system_to_user;
       popl %eax;
+      RESTORE_ALL
+      iret;
+
+// Custom page fault handler - gestiona page faults
+ENTRY(page_fault_handler_custom)
+      SAVE_ALL         
+      pushl %eax;
+      call user_to_system;
+      popl %eax;
+      call page_fault_routine_custom;
+      pushl %eax;
+      call system_to_user;
+      popl %eax;
+      RESTORE_ALL
+      iret;
+
+ENTRY(keyboard_exit_handler)
+      SAVE_ALL
+      pushl %esp; // Passem el punter als registres
+      call keyboard_exit_routine;
+      addl $4, %esp;
       RESTORE_ALL
       iret;
 
@@ -102,11 +125,18 @@ ENTRY(system_call_handler)
 	push $__USER_CS
 	push 4(%ebp)
 	SAVE_ALL	// What about arg 6?
+	call is_in_keyboard_callback // Comprovem si estem en callback
+	cmpl $0, %eax
+	jne sysenter_inprogress      // Si es cert, retornem error
+	movl 0x18(%esp), %eax
 	cmpl $0, %eax
 	jl sysenter_err
 	cmpl $MAX_SYSCALL, %eax
 	jg sysenter_err
 	call *sys_call_table(, %eax, 0x04)
+	jmp sysenter_fin
+sysenter_inprogress:
+	movl $-115, %eax             // Retornem -EINPROGRESS
 	jmp sysenter_fin
 sysenter_err:
 	movl $-ENOSYS, %eax
