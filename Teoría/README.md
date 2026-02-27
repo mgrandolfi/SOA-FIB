@@ -1,0 +1,1 @@
+El resumen del segundo parcial está hecho con IA y es meramente complementario (como mucho). En los apuntes del primer parcial faltan cosas, pero está el contenido al 80%, más o menos.
