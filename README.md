@@ -2,30 +2,39 @@
 
 Coursework repository for **SOA (Sistemas Operativos Avanzados)** at the **Facultat d'Informàtica de Barcelona (FIB - UPC)**.
 
-This repository gathers coursework and technical material related to advanced operating system concepts and systems-oriented development.
+This repository gathers the practical and theoretical material developed during the course, including lab deliverables, project work, exam preparation, and theory notes.
 
 ## Overview
 
-SOA expands on operating-systems foundations with a more advanced and technical perspective on system behavior, architecture, and low-level software concerns.
+SOA focuses on the internal behavior of operating systems and on how their design decisions affect the execution and performance of applications.
 
-This repo is intended as a structured archive of the subject work, including implementations, deliverables, and notes produced during the course.
+This repository serves as a structured archive of the coursework completed throughout the subject, combining both implementation-oriented material and supporting theory.
 
-## Contents
+## Repository structure
 
-- Coursework deliverables
-- Source code
-- Technical notes
-- Practice material and experiments
+- `Entregas Lab/` — laboratory deliverables completed during the course
+- `ExamenLab/` — material related to lab exam preparation or assessment
+- `Proyecto/` — project work developed for the subject (grade = 10)
+- `Teoría/` — theory notes and supporting academic material
+- `README.md` — repository overview
+
+## What you'll find here
+
+- Lab deliverables
+- Systems-oriented source code
+- Project material
+- Theory and study notes
+- Exam-related preparation resources
 
 ## Tech
 
-- C
+- C++
 - GNU/Linux
-- Make
-- Debugging and low-level tooling
+- Make and terminal-based workflows
+- Debugging and low-level development tools
 
 ## Notes
 
-This is an academic repository for the SOA coursework at FIB.
+This is an academic repository created for the SOA coursework at FIB.
 
-It is primarily intended to document course-related work rather than to present a standalone software product.
+The structure reflects the way the subject combines practical laboratory work, project-based development, and theoretical study material rather than the layout of a standalone production project.
